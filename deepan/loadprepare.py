@@ -14,3 +14,10 @@ IDs = list(df_raw.index)  # LUSC 504 #LUAD 522
 
 #check types of cols and adapt them
 print(df_raw.info(verbose = True))
+
+#look at statistics
+print(df_raw.isnull().sum())
+nuller = df_raw.isnull().sum()
+
+print(df_raw.describe())
+
