@@ -18,14 +18,17 @@ def get_adjacency_matrix(df):
     adj = np.zeros((m, m))
 
     # cutoff subsetting
-    closes = dist < 0.5
+    closes = dist < 0.3
     # matrix with distnace instead boolean: adj[closes] = dist[closes]
 
+    #create df so that names are present
     df_adj = pd.DataFrame(closes, index= df.index.values, columns= df.index.values)
     return df_adj #numpy array
 
 
-def draw_graph(closes):
+def to_graph(closes):
     #takes numpy array
-    G = nx.from_numpy_matrix(closes)
-    nx.draw(G, edge_color=[i[2]['weight'] for i in G.edges(data=True)])
+    G = nx.from_numpy_matrix(closes.to_numpy())
+    #nx.draw(G, edge_color=[i[2]['weight'] for i in G.edges(data=True)])
+    #add features?
+    return G

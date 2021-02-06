@@ -6,18 +6,23 @@ from torch_geometric.datasets import Planetoid
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
+from create_pyg_dataset import create_dataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--variational', action='store_true')
 parser.add_argument('--linear', action='store_true')
 parser.add_argument('--dataset', type=str, default='Cora',
-                    choices=['Cora', 'CiteSeer', 'PubMed'])
+                    choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=400)
 args = parser.parse_args()
 
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
-dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures())
-data = dataset[0]
+#added line for our LUAD set
+if args.dataset == 'LUAD':
+    data, names = create_dataset(0)
+else:
+    dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures())
+    data = dataset[0]
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
