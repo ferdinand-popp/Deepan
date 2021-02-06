@@ -7,24 +7,31 @@ import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
 from create_pyg_dataset import create_dataset
+from sklearn.manifold import TSNE
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--variational', action='store_true')
-parser.add_argument('--linear', action='store_true')
+parser.add_argument('--linear', action='store_true', default='True')
 parser.add_argument('--dataset', type=str, default='Cora',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=400)
 args = parser.parse_args()
 
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
-#added line for our LUAD set
+# added line for our LUAD set
 if args.dataset == 'LUAD':
     data, names = create_dataset(0)
+    out_channels = 16
+    num_features = data.num_features
 else:
     dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures())
     data = dataset[0]
+    out_channels = 16
+    num_features = dataset.num_features
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
+
+'''Models'''
 
 
 class GCNEncoder(torch.nn.Module):
@@ -69,8 +76,7 @@ class VariationalLinearEncoder(torch.nn.Module):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
 
-out_channels = 16
-num_features = dataset.num_features
+'''Selection'''
 
 if not args.variational:
     if not args.linear:
@@ -82,6 +88,8 @@ else:
         model = VGAE(VariationalLinearEncoder(num_features, out_channels))
     else:
         model = VGAE(VariationalGCNEncoder(num_features, out_channels))
+
+'''GPU CUDA Connection and send data'''
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
@@ -106,6 +114,13 @@ def test(pos_edge_index, neg_edge_index):
     model.eval()
     with torch.no_grad():
         z = model.encode(x, train_pos_edge_index)
+        '''
+        # Cluster embedded values using k-means.
+        kmeans_input = z.cpu().numpy() #copies it to CPU 
+        kmeans = KMeans(n_clusters=7, random_state=0).fit(kmeans_input)
+        pred = kmeans.predict(kmeans_input)
+        print(pred)
+        '''
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
@@ -113,3 +128,25 @@ for epoch in range(1, args.epochs + 1):
     loss = train()
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
     print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
+
+'''
+@torch.no_grad()
+def plot_points(colors):
+    model.eval()
+    z = model.encode(data.x, data.train_pos_edge_index)
+    z = TSNE(n_components=2).fit_transform(z.cpu().numpy())
+    # y = data.y.cpu().numpy()
+
+    plt.figure(figsize=(8, 8))
+    for i in range(dataset.num_classes):
+        # plt.scatter(z[y == i, 0], z[y == i, 1], s=20, color=colors[i])
+        plt.scatter(z[i, 0], z[i, 1], s=20, color=colors[i])
+    plt.axis('off')
+    plt.show()
+
+colors = [
+    '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700'
+]
+
+#plot_points()
+'''
