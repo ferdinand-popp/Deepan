@@ -11,18 +11,22 @@ from train import create_binary_table
 from calculate_matrices import get_adjacency_matrix
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
+# seeding
+torch.manual_seed(0)
+# np.random.seed(0)
+# torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', action='store_true', default='False')
-parser.add_argument('--linear', action='store_true', default='True')
+parser.add_argument('--variational', action='store_true', default='True')
+parser.add_argument('--linear', action='store_true', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--epochs', type=int, default=20)
+parser.add_argument('--epochs', type=int, default=1000)
 args = parser.parse_args()
 
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
-
-
 
 # added line for our LUAD set
 if args.dataset == 'LUAD':
@@ -41,9 +45,6 @@ else:
     data = dataset[0]
     out_channels = 16
     num_features = dataset.num_features
-    # added LUAD compare
-    luad, names = create_dataset()
-    luad = generate_masks(luad, 0.7, 0.2)
 
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
@@ -98,13 +99,19 @@ class VariationalLinearEncoder(torch.nn.Module):
 if not args.variational:
     if not args.linear:
         model = GAE(GCNEncoder(num_features, out_channels))
+        model_name = 'Graph Autoencoder GCN'
     else:
         model = GAE(LinearEncoder(num_features, out_channels))
+        model_name = 'Linear encoder'
+
 else:
     if args.linear:
         model = VGAE(VariationalLinearEncoder(num_features, out_channels))
+        model_name = 'Variantional Linear Encoder'
+
     else:
         model = VGAE(VariationalGCNEncoder(num_features, out_channels))
+        model_name = 'Graph Variational Autoencoder GCN'
 
 '''GPU CUDA Connection and send data'''
 
@@ -134,11 +141,11 @@ def test(pos_edge_index, neg_edge_index):
         '''
         # Cluster embedded values using k-means.
         kmeans_input = z.cpu().numpy() #copies it to CPU 
-        kmeans = KMeans(n_clusters=7, random_state=0).fit(kmeans_input)
-        pred = kmeans.predict(kmeans_input)
-        print(pred)
+        kmeans = KMeans(n_clusters=args.clusters, random_state=0).fit(kmeans_input)
+        kmeans.labels # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
         '''
     return model.test(z, pos_edge_index, neg_edge_index)
+
 
 losses = []
 aucs = []
@@ -147,15 +154,18 @@ for epoch in range(1, args.epochs + 1):
     losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
     aucs.append(auc)
-    #print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
+    # print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
 
+def plot_auc(aucs):
+    # plt.plot(losses)
+    plt.plot(aucs)
+    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.dataset, model_name, data.num_features, max(aucs))
+    plt.title(title)
+    plt.xlabel('Epochs')
+    plt.ylabel('AUC')
+    plt.show()
+#plot_auc(aucs)
 
-plt.plot(losses)
-#plt.plot(aucs)
-plt.title(args.dataset)
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.show()
 '''
 @torch.no_grad()
 def plot_points(colors):
@@ -175,5 +185,16 @@ colors = [
     '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700'
 ]
 
-#plot_points()
+plot_points(colors)
 '''
+
+def cluster_patients():
+    with torch.no_grad():
+        z = model.encode(x, train_pos_edge_index)
+        # Cluster embedded values using k-means.
+        kmeans_input = z.cpu().numpy() #copies it to CPU
+        kmeans = KMeans(n_clusters=5, random_state=0).fit(kmeans_input)
+        categories = kmeans.labels_ # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
+        df['category']=pd.Series(categories)
+
+cluster_patients()

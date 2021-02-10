@@ -5,18 +5,26 @@ import torch.nn as nn
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, DeepGraphInfomax
 from create_pyg_dataset import create_dataset, generate_masks
+from train import create_binary_table
+from calculate_matrices import get_adjacency_matrix
 
-dataset = 'LUAD'
+dataset = 'Cora'
 
 if dataset == 'Cora':
     path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
     dataset = Planetoid(path, dataset)
     data_i = dataset[0]
 else:
-    data_i, names = create_dataset(0)
-    out_channels = 16
-    num_features = data_i.num_features
-    data_i = generate_masks(data_i, 0.7, 0.2)
+    # 1
+    df_features = create_binary_table(clinical=True, mutation=True, expression=True)
+    # 2
+    df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
+    # 3
+    data, names = create_dataset(df_adj, df_features)
+
+    out_channels = data.num_nodes
+    num_features = data.num_features
+    data_i = generate_masks(data, 0.7, 0.2)
 
 class Encoder(nn.Module):
     def __init__(self, in_channels, hidden_channels):
@@ -64,6 +72,6 @@ def test():
 for epoch in range(1, 301):
     loss = train()
     print('Epoch: {:03d}, Loss: {:.4f}'.format(epoch, loss))
-acc = test()
-print('Accuracy: {:.4f}'.format(acc))
+    #acc = test()
+    #print('Accuracy: {:.4f}'.format(acc))
 
