@@ -12,7 +12,7 @@ def get_de():
     ser = ser.sort_values(ascending=False)
 
     # subsetting for top 1000 ones & drop var
-    ser_selected = ser.head(1000)
+    ser_selected = ser.head(100)
 
     # get indices
     feature_list = list(ser_selected.index.values)
@@ -23,7 +23,6 @@ def preselect_expression(df):
     # input feature list
     features = get_de()
     df_preselected = df.loc[features].sort_index()
-    print(df_preselected)
 
     return df_preselected
 

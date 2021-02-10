@@ -3,27 +3,28 @@ from scipy.spatial.distance import cdist
 import numpy as np
 import networkx as nx
 
-def get_adjacency_matrix(df):
+def get_adjacency_matrix(df=None, cutoff = 0.35, metric = 'cosine'):
     # takes binary matrix,calculates distance and cutoffs -> returns boolean distance df
-    df = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
+    if df is None:
+        df = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
 
     data = df.to_numpy()
     n, m = data.shape
 
     # generate distance matrix on cosine similarity / can also do euclid
     dist = cdist(data, data,
-                 metric='cosine')  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
+                 metric= metric)  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
 
     # create adjacency matrix
     adj = np.zeros((m, m))
 
     # cutoff subsetting
-    closes = dist < 0.35
+    closes = dist < cutoff #also self links
     # matrix with distance instead boolean: adj[closes] = dist[closes]
 
     #create df so that names are present
     df_adj = pd.DataFrame(closes, index= df.index.values, columns= df.index.values)
-    return df_adj #numpy array
+    return df_adj
 
 
 def to_graph(closes):

@@ -7,22 +7,33 @@ import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
 from create_pyg_dataset import create_dataset, generate_masks
+from train import create_binary_table
+from calculate_matrices import get_adjacency_matrix
 from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', action='store_true')
-parser.add_argument('--linear', action='store_true', default='False')
+parser.add_argument('--variational', action='store_true', default='False')
+parser.add_argument('--linear', action='store_true', default='True')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--epochs', type=int, default=400)
+parser.add_argument('--epochs', type=int, default=20)
 args = parser.parse_args()
 
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
 
+
+
 # added line for our LUAD set
 if args.dataset == 'LUAD':
-    data, names = create_dataset(0)
-    out_channels = 16
+    # 1
+    df_features = create_binary_table(clinical=True, mutation=True, expression=True)
+    # 2
+    df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
+    # 3
+    data, names = create_dataset(df_adj, df_features)
+
+    out_channels = data.num_nodes
     num_features = data.num_features
     data = generate_masks(data, 0.7, 0.2)
 else:
@@ -30,8 +41,8 @@ else:
     data = dataset[0]
     out_channels = 16
     num_features = dataset.num_features
-    #added LUAD compare
-    luad, names = create_dataset(0)
+    # added LUAD compare
+    luad, names = create_dataset()
     luad = generate_masks(luad, 0.7, 0.2)
 
 data.train_mask = data.val_mask = data.test_mask = data.y = None
@@ -109,7 +120,6 @@ def train():
     optimizer.zero_grad()
     z = model.encode(x, train_pos_edge_index)
     loss = model.recon_loss(z, train_pos_edge_index)
-    print(loss)
     if args.variational:
         loss = loss + (1 / data.num_nodes) * model.kl_loss()
     loss.backward()
@@ -130,12 +140,22 @@ def test(pos_edge_index, neg_edge_index):
         '''
     return model.test(z, pos_edge_index, neg_edge_index)
 
-
+losses = []
+aucs = []
 for epoch in range(1, args.epochs + 1):
     loss = train()
+    losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
-    print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
+    aucs.append(auc)
+    #print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
 
+
+plt.plot(losses)
+#plt.plot(aucs)
+plt.title(args.dataset)
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.show()
 '''
 @torch.no_grad()
 def plot_points(colors):

@@ -4,10 +4,13 @@ from torch_geometric.transforms import  NormalizeFeatures
 from calculate_matrices import *
 from math import floor
 
-def create_dataset(df):
-    #returns py torch geometric data pbject and df with names
+def create_dataset(df_adj=None, df_features=None):
+    #returns py torch geometric data object and df with names
     #calculate distance --> get adjacency matrix
-    df_adj = get_adjacency_matrix(0)
+
+    print('Creating Dataset')
+    if df_adj is None:
+        df_adj = get_adjacency_matrix()
 
     #convert matrix to G graph object
     graph = to_graph(df_adj)
@@ -18,31 +21,35 @@ def create_dataset(df):
     #convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
 
-    #create feature matrix
-    df = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
+    if df_features is None:
+        #create feature matrix
+        df_features = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
 
     #sort features fitting to adj matrix
-    df = df.reindex(df_adj.index)
+    df_features = df_features.reindex(df_adj.index)
 
     #df to numpy array to Tensor
-    x = torch.Tensor(np.array(df))
+    x = torch.Tensor(np.array(df_features))
 
     #set features in data set
     data.x = x
 
     #set y labels added later in supervised way
-    data.y = []
+    data.y = None
     data.weight = None
 
     #could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
 
-    #save index patient names
-    names = pd.Series(df.index.values)
+    #save index patient names as control
+    names = pd.Series(df_features.index.values)
+
     return data, names
 
 def generate_masks(data, perc_train, perc_test):
-    #70%train, 20% test, remaining 10% val
+    #70%train, 20% test, remaining 10% val -> Model in Model out
+    print('Generating masks for Nodes')
+
     nodes = data.num_nodes
     num_train = floor(nodes*perc_train) #round down to whole number
     num_test = floor(nodes*perc_test)
