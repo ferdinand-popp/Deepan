@@ -4,18 +4,30 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import SGConv
+from create_pyg_dataset import create_dataset, generate_masks
 
-dataset = 'Cora'
-path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
-dataset = Planetoid(path, dataset)
-data = dataset[0]
+
+dataset = 'LUAD'
+#needs data.y values so not suited right now
+
+if dataset == 'Cora':
+    path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
+    dataset = Planetoid(path, dataset)
+    data = dataset[0]
+    num_classes = dataset.num_classes
+else:
+    data, names = create_dataset(0)
+    out_channels = 16
+    num_features = data.num_features
+    data = generate_masks(data, 0.7, 0.2)
+    num_classes = 2
 
 
 class Net(torch.nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.conv1 = SGConv(
-            dataset.num_features, dataset.num_classes, K=2, cached=True)
+            data.num_features, num_classes, K=2, cached=True)
 
     def forward(self):
         x, edge_index = data.x, data.edge_index

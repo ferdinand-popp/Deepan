@@ -18,8 +18,8 @@ def get_adjacency_matrix(df):
     adj = np.zeros((m, m))
 
     # cutoff subsetting
-    closes = dist < 0.3
-    # matrix with distnace instead boolean: adj[closes] = dist[closes]
+    closes = dist < 0.35
+    # matrix with distance instead boolean: adj[closes] = dist[closes]
 
     #create df so that names are present
     df_adj = pd.DataFrame(closes, index= df.index.values, columns= df.index.values)

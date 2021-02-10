@@ -6,28 +6,34 @@ from torch_geometric.datasets import Planetoid
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
-from create_pyg_dataset import create_dataset
+from create_pyg_dataset import create_dataset, generate_masks
 from sklearn.manifold import TSNE
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--variational', action='store_true')
-parser.add_argument('--linear', action='store_true', default='True')
-parser.add_argument('--dataset', type=str, default='Cora',
+parser.add_argument('--linear', action='store_true', default='False')
+parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=400)
 args = parser.parse_args()
 
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+
 # added line for our LUAD set
 if args.dataset == 'LUAD':
     data, names = create_dataset(0)
     out_channels = 16
     num_features = data.num_features
+    data = generate_masks(data, 0.7, 0.2)
 else:
     dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures())
     data = dataset[0]
     out_channels = 16
     num_features = dataset.num_features
+    #added LUAD compare
+    luad, names = create_dataset(0)
+    luad = generate_masks(luad, 0.7, 0.2)
+
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -103,6 +109,7 @@ def train():
     optimizer.zero_grad()
     z = model.encode(x, train_pos_edge_index)
     loss = model.recon_loss(z, train_pos_edge_index)
+    print(loss)
     if args.variational:
         loss = loss + (1 / data.num_nodes) * model.kl_loss()
     loss.backward()
