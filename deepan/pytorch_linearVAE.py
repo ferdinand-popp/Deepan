@@ -7,7 +7,7 @@ import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
 from create_pyg_dataset import create_dataset, generate_masks
-from train import create_binary_table
+from create_table import create_binary_table
 from utils import get_adjacency_matrix
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -31,14 +31,16 @@ path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
 
 # added line for our LUAD set
 if args.dataset == 'LUAD':
-    # 1
-    df_features = create_binary_table(clinical=True, mutation=True, expression=True)
-    # 2
-    df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
-    # 3
-    data, names = create_dataset(df_adj, df_features)
-
-    out_channels = data.num_nodes
+    if False:
+        # 1
+        df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
+        # 2
+        df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
+        # 3
+        data = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
+    else:
+        data = torch.load(r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt')
+    out_channels = 16 #data.num_nodes
     num_features = data.num_features
     data = generate_masks(data, 0.7, 0.2)
 else:
@@ -139,6 +141,7 @@ def test(pos_edge_index, neg_edge_index):
     model.eval()
     with torch.no_grad():
         z = model.encode(x, train_pos_edge_index)
+        meb = z.cpu().numpy() #return nxn numpy array
         '''
         # Cluster embedded values using k-means.
         kmeans_input = z.cpu().numpy() #copies it to CPU 
@@ -155,7 +158,8 @@ for epoch in range(1, args.epochs + 1):
     losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
     aucs.append(auc)
-    # print('Epoch: {:03d}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, auc, ap))
+    print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
+
 
 def plot_auc(aucs):
     # plt.plot(losses)
@@ -165,7 +169,9 @@ def plot_auc(aucs):
     plt.xlabel('Epochs')
     plt.ylabel('AUC')
     plt.show()
-#plot_auc(aucs)
+
+
+# plot_auc(aucs)
 
 '''
 @torch.no_grad()
@@ -189,13 +195,15 @@ colors = [
 plot_points(colors)
 '''
 
+
 def cluster_patients():
     with torch.no_grad():
         z = model.encode(x, train_pos_edge_index)
         # Cluster embedded values using k-means.
-        kmeans_input = z.cpu().numpy() #copies it to CPU
+        kmeans_input = z.cpu().numpy()  # copies it to CPU
         kmeans = KMeans(n_clusters=5, random_state=0).fit(kmeans_input)
-        categories = kmeans.labels_ # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        df_y['category']=pd.Series(categories)
+        categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
+        df_y['category'] = pd.Series(categories)
+        print(df_y.head())
 
 cluster_patients()

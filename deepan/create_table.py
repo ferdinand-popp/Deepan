@@ -1,15 +1,14 @@
-# test script for LUAD
 import pandas as pd
-import numpy as np
+
 from loadclinical import load_clinical
-from loadmutations import load_mutations
 from loadexpression import load_expression
+from loadmutations import load_mutations
 
 
 def create_binary_table(clinical, mutation, expression):  # entity = 'LUAD', binary = True
 
     # loading all three datatypes and comparing patient IDS
-    df_clin = load_clinical()
+    df_clin, df_y_all = load_clinical()
     df_mut = load_mutations()
     df_expr = load_expression()
 
@@ -18,10 +17,12 @@ def create_binary_table(clinical, mutation, expression):  # entity = 'LUAD', bin
     ids_mut = df_mut.index.values.tolist()  # 567
     ids_expr = df_expr.index.values.tolist()  # 515
 
+    '''
     # count features
     cols_clin = list(df_clin.columns)  # 22 features
     cols_mut = list(df_mut.columns)  # 18964 features
     cols_expr = list(df_mut.columns)  # 19572 features
+    '''
 
     # get intersecting patient ids
     ids_clin_mut = [e for e in ids_mut if e in ids_clin]  # 515
@@ -45,7 +46,10 @@ def create_binary_table(clinical, mutation, expression):  # entity = 'LUAD', bin
     df_all = pd.concat(dfs, axis=1)
     print('Concatenated dataset binary:', df_all.shape)
 
+    #subset df_y_all and order for grouping later
+    df_y = df_y_all.loc[ids_clin_mut_expr].sort_index()
+
     # save file
     df_all.to_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index=True, sep='\t')
 
-    return df_all
+    return df_all, df_y

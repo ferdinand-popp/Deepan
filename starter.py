@@ -1,6 +1,6 @@
 import argparse
 import pandas as pd
-from deepan.train import DEEPAN
+from deepan.create_table import DEEPAN
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

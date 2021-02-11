@@ -1,8 +1,10 @@
 import pandas as pd
+import numpy as np
+
 
 def load_clinical(url_clinical=None):
     if url_clinical is None:
-        url_clinical = r'media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowser_20210125.txt'
+        url_clinical = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
 
     df_raw = pd.read_csv(url_clinical, sep='\t', index_col=0)
 
@@ -79,7 +81,7 @@ def load_clinical(url_clinical=None):
 
     '''
     excluded = ['race', 'histological_type', 'tumor_tissue_site', 'date_of_initial_pathologic_diagnosis',
-                'days_to_death', 'days_to_last_followup', 'days_to_last_known_alive',
+                'days_to_death', 'days_to_last_followup', 'days_to_last_known_alive', 'OS_time_days', 'OS_event',
                 'karnofsky_performance_score', 'vital_status', 'year_of_tobacco_smoking_onset', 'years_to_birth',
                 'ethnicity']
     df_selected = df_raw.drop(excluded, axis=1)
@@ -102,4 +104,7 @@ def load_clinical(url_clinical=None):
     # save to txt file
     # df_binary.to_csv(r'',index=True, sep='\t')
 
-    return df_binary
+    # control values
+    df_y_all = df_raw[['OS_time_days', 'OS_event']]
+
+    return df_binary, df_y_all
