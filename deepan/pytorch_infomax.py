@@ -6,7 +6,7 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, DeepGraphInfomax
 from create_pyg_dataset import create_dataset, generate_masks
 from train import create_binary_table
-from calculate_matrices import get_adjacency_matrix
+from utils import get_adjacency_matrix
 
 dataset = 'Cora'
 

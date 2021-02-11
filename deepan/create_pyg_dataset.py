@@ -1,7 +1,6 @@
 import torch
 from torch_geometric.utils import from_networkx
-from torch_geometric.transforms import  NormalizeFeatures
-from calculate_matrices import *
+from utils import *
 from math import floor
 
 def create_dataset(df_adj=None, df_features=None):
@@ -22,7 +21,6 @@ def create_dataset(df_adj=None, df_features=None):
     data = from_networkx(graph)
 
     if df_features is None:
-        #create feature matrix
         df_features = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
 
     #sort features fitting to adj matrix
@@ -42,9 +40,10 @@ def create_dataset(df_adj=None, df_features=None):
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
 
     #save index patient names as control
-    names = pd.Series(df_features.index.values)
+    control = df_features.drop()
+    #df_y = pd.Series(df_features['OS_time_days', 'OS_event'] , index = df_features.index.values)
 
-    return data, names
+    return data
 
 def generate_masks(data, perc_train, perc_test):
     #70%train, 20% test, remaining 10% val -> Model in Model out
@@ -60,3 +59,5 @@ def generate_masks(data, perc_train, perc_test):
     data.test_mask = list_test
     data.val_mask = list_val
     return data
+
+create_dataset()

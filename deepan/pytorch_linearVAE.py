@@ -8,10 +8,11 @@ from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
 from create_pyg_dataset import create_dataset, generate_masks
 from train import create_binary_table
-from calculate_matrices import get_adjacency_matrix
+from utils import get_adjacency_matrix
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+import pandas as pd
 
 # seeding
 torch.manual_seed(0)
@@ -195,6 +196,6 @@ def cluster_patients():
         kmeans_input = z.cpu().numpy() #copies it to CPU
         kmeans = KMeans(n_clusters=5, random_state=0).fit(kmeans_input)
         categories = kmeans.labels_ # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        df['category']=pd.Series(categories)
+        df_y['category']=pd.Series(categories)
 
 cluster_patients()

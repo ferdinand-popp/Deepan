@@ -11,7 +11,7 @@ def get_de():
     # sort by var
     ser = ser.sort_values(ascending=False)
 
-    # subsetting for top 1000 ones & drop var
+    # subsetting for top 100 ones & drop var
     ser_selected = ser.head(100)
 
     # get indices
