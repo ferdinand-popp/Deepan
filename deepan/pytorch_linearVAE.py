@@ -1,8 +1,10 @@
 import argparse
+import os
 import os.path as osp
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 import torch
 import torch_geometric.transforms as T
 from sklearn.cluster import KMeans
@@ -13,7 +15,7 @@ from torch_geometric.utils import train_test_split_edges
 
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
-from utils import get_adjacency_matrix
+from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 
 # seeding
 torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
@@ -23,13 +25,13 @@ parser.add_argument('--variational', action='store_true', default='True')
 parser.add_argument('--linear', action='store_true', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--epochs', type=int, default=1000)
+parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--lr', type=float, default=0.01)
-parser.add_argument('--cutoff', type=float, default=0.35)
+parser.add_argument('--cutoff', type=float, default=0.4)
 parser.add_argument('--visualize', action='store_true', default='False')
 parser.add_argument('--newdataset', action='store_true', default='False')
 parser.add_argument('--decay', type=float, default=0.6)
-parser.add_argument('--outputchannels', type=int, default=16)
+parser.add_argument('--outputchannels', type=int, default=5)
 
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
@@ -37,31 +39,32 @@ parser.add_argument('--outputchannels', type=int, default=16)
 args = parser.parse_args()
 
 # Writer will output to ./runs/ directory by default
-writer = SummaryWriter(r'../runs/')
+_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs'))  # get folder in runs
+writer_folder = f'{len(dirs)}'  # number of folder +1 naming
+writer = SummaryWriter(r'../runs/{}'.format(writer_folder), comment='Help', filename_suffix='Yes')
 
 # added line for our LUAD set
 if args.dataset == 'LUAD':
-    if args.newdataset is True:
+    if args.newdataset == 'True':
         # 1
         df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
         # 2
         df_adj = get_adjacency_matrix(df_features, cutoff=args.cutoff, metric='cosine')
         # 3
         dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
-    else:
+    else:  # use existing data obejct
         filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt'
     data = torch.load(filepath)
-    out_channels = args.outputchannels
-    num_features = data.num_features
     data = generate_masks(data, 0.7, 0.2)
 else:
+    # Planetoid dataset
     path_data = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+    datasets = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
+    data = datasets[0]
 
-    dataset = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
-    data = dataset[0]
-    out_channels = args.outputchannels
-    num_features = dataset.num_features
-
+out_channels = args.outputchannels
+num_features = data.num_features
+#plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -163,6 +166,14 @@ def test(pos_edge_index, neg_edge_index):
         '''
     return model.test(z, pos_edge_index, neg_edge_index)
 
+#logging
+params = ''
+for arg in vars(args):
+    params += '{}: {} \n'.format(arg, getattr(args, arg) or '')
+writer.add_text('Parameters', params)
+writer.add_hparams(vars(args), {'linear': 0})
+
+
 
 losses = []
 aucs = []
@@ -170,6 +181,9 @@ for epoch in range(1, args.epochs + 1):
     loss = train()
     losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
+    writer.add_scalar('auc', auc, epoch)
+    writer.add_scalar('loss', loss, epoch)
+
     aucs.append(auc)
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
@@ -181,11 +195,10 @@ def plot_auc(aucs):
     plt.title(title)
     plt.xlabel('Epochs')
     plt.ylabel('AUC')
-    plt.show()
-    writer.add_image('Losses', img_grid)
+    # plt.show()
 
+    print('Done')
 
-plot_auc(aucs)
 
 '''
 @torch.no_grad()
