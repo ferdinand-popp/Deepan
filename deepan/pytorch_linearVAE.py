@@ -1,23 +1,22 @@
+import argparse
 import os.path as osp
 
-import argparse
+import matplotlib.pyplot as plt
+import pandas as pd
 import torch
-from torch_geometric.datasets import Planetoid
 import torch_geometric.transforms as T
+from sklearn.cluster import KMeans
+from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
+
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
 from utils import get_adjacency_matrix
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-import pandas as pd
 
 # seeding
-torch.manual_seed(0)
-# np.random.seed(0)
-# torch.set_deterministic(True)
+torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--variational', action='store_true', default='True')
@@ -25,28 +24,42 @@ parser.add_argument('--linear', action='store_true', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=1000)
+parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--cutoff', type=float, default=0.35)
+parser.add_argument('--visualize', action='store_true', default='False')
+parser.add_argument('--newdataset', action='store_true', default='False')
+parser.add_argument('--decay', type=float, default=0.6)
+parser.add_argument('--outputchannels', type=int, default=16)
+
+# Logging/debugging/checkpoint related (helps a lot with experimentation)
+# parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
+
 args = parser.parse_args()
 
-path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+# Writer will output to ./runs/ directory by default
+writer = SummaryWriter(r'../runs/')
 
 # added line for our LUAD set
 if args.dataset == 'LUAD':
-    if False:
+    if args.newdataset is True:
         # 1
         df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
         # 2
-        df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
+        df_adj = get_adjacency_matrix(df_features, cutoff=args.cutoff, metric='cosine')
         # 3
-        data = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
+        dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
     else:
-        data = torch.load(r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt')
-    out_channels = 16 #data.num_nodes
+        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt'
+    data = torch.load(filepath)
+    out_channels = args.outputchannels
     num_features = data.num_features
     data = generate_masks(data, 0.7, 0.2)
 else:
-    dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures())
+    path_data = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+
+    dataset = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
     data = dataset[0]
-    out_channels = 16
+    out_channels = args.outputchannels
     num_features = dataset.num_features
 
 data.train_mask = data.val_mask = data.test_mask = data.y = None
@@ -122,7 +135,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 x = data.x.to(device)
 train_pos_edge_index = data.train_pos_edge_index.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # add decay?
 
 
 def train():
@@ -141,7 +154,7 @@ def test(pos_edge_index, neg_edge_index):
     model.eval()
     with torch.no_grad():
         z = model.encode(x, train_pos_edge_index)
-        meb = z.cpu().numpy() #return nxn numpy array
+        meb = z.cpu().numpy()  # return nxn numpy array
         '''
         # Cluster embedded values using k-means.
         kmeans_input = z.cpu().numpy() #copies it to CPU 
@@ -169,9 +182,10 @@ def plot_auc(aucs):
     plt.xlabel('Epochs')
     plt.ylabel('AUC')
     plt.show()
+    writer.add_image('Losses', img_grid)
 
 
-# plot_auc(aucs)
+plot_auc(aucs)
 
 '''
 @torch.no_grad()
@@ -206,4 +220,4 @@ def cluster_patients():
         df_y['category'] = pd.Series(categories)
         print(df_y.head())
 
-cluster_patients()
+# cluster_patients()
