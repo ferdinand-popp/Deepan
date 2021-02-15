@@ -82,11 +82,10 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
 
     # could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-    torch.save(data, r'/media/administrator/INTERNAL3_6TB/TCGA_data/{}/raw/data_{}_{}.pt'.format('LUAD',
-                                                                                                 data.num_features,
-                                                                                                 date.today()))
+    filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/{}/raw/data_{}_{}.pt'.format('LUAD', data.num_features, date.today())
+    torch.save(data, filepath)
 
-    return data
+    return data, filepath
 
 
 def generate_masks(data, perc_train, perc_test):
