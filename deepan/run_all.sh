@@ -1,23 +1,20 @@
 #!/bin/bash
-for integ in 'Clin+mRNA' 'CNA+mRNA' 'Clin+CNA'
+for linear in 'True' 'False'
 do
-    for ds in 128 256 512
-    do
-        for lsize in 16 32 64
-        do
-            for distance in 'kl' 'mmd'
-            do
-                for beta in 1 10 15 25 50 100
-                do
-                    for dtype in  'ER' 'DR' 'IC' 'PAM' #'W' whole data
-                    do
-                        for fold in 1 2 3 4 5 #0 whole data
-                        do
-                            python run_cncvae.py --integration=${integ} --ds=${ds} --dtype=${dtype} --fold=${fold} --ls=${lsize} --distance=${distance} --beta=${beta} --writedir='results'
-                        done
-                    done
-                done
-            done
-        done
-    done
-done
+  for variational in 'True' 'False'
+  do
+      for epochs in 200 400 600
+      do
+          for lr in 0.008 0.01 0.012
+          do
+              for cutoff in 0.2 0.3 0.35 0.4 0.5
+              do
+                  for outputchannels in 2 8 16 24 52
+                  do
+                              python pytorch_linearVAE.py --linear=${linear} --variational=${variational} --epochs=${epochs} --lr=${lr} --outputchannels=${outputchannels} --cutoff=${cutoff}
+                      done
+                  done
+              done
+          done
+      done
+  done

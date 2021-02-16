@@ -21,15 +21,15 @@ from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', action='store_true', default='True')
-parser.add_argument('--linear', action='store_true', default='False')
+parser.add_argument('--variational', default='True')
+parser.add_argument('--linear', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--lr', type=float, default=0.01)
 parser.add_argument('--cutoff', type=float, default=0.4)
 parser.add_argument('--visualize', action='store_true', default='False')
-parser.add_argument('--newdataset', action='store_true', default='False')
+parser.add_argument('--newdataset', action='store_true', default='True')
 parser.add_argument('--decay', type=float, default=0.6)
 parser.add_argument('--outputchannels', type=int, default=5)
 
@@ -39,7 +39,7 @@ parser.add_argument('--outputchannels', type=int, default=5)
 args = parser.parse_args()
 
 # Writer will output to ./runs/ directory by default
-_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs'))  # get folder in runs
+_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs/160221'))  # get folder in runs
 writer_folder = f'{len(dirs)}'  # number of folder +1 naming
 writer = SummaryWriter(r'../runs/{}'.format(writer_folder), comment='Help', filename_suffix='Yes')
 
@@ -174,7 +174,6 @@ writer.add_text('Parameters', params)
 writer.add_hparams(vars(args), {'linear': 0})
 
 
-
 losses = []
 aucs = []
 for epoch in range(1, args.epochs + 1):
@@ -187,6 +186,7 @@ for epoch in range(1, args.epochs + 1):
     aucs.append(auc)
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
+writer.add_scalar('Top', auc)
 
 def plot_auc(aucs):
     # plt.plot(losses)
@@ -228,9 +228,12 @@ def cluster_patients():
         z = model.encode(x, train_pos_edge_index)
         # Cluster embedded values using k-means.
         kmeans_input = z.cpu().numpy()  # copies it to CPU
-        kmeans = KMeans(n_clusters=5, random_state=0).fit(kmeans_input)
-        categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        df_y['category'] = pd.Series(categories)
-        print(df_y.head())
+        for k in range(1, 11):
+            kmeans = KMeans(n_clusters=k, random_state=0)
+            kmeans.fit(kmeans_input)
+            writer.add_scalar('SSE', kmeans.inertia_, k)
 
-# cluster_patients()
+        #categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
+        #df_y['category'] = pd.Series(categories)
+
+cluster_patients()
