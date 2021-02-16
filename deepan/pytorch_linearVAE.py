@@ -39,7 +39,7 @@ parser.add_argument('--outputchannels', type=int, default=5)
 args = parser.parse_args()
 
 # Writer will output to ./runs/ directory by default
-_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs/160221'))  # get folder in runs
+_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs'))  # get folder in runs
 writer_folder = f'{len(dirs)}'  # number of folder +1 naming
 writer = SummaryWriter(r'../runs/{}'.format(writer_folder), comment='Help', filename_suffix='Yes')
 
@@ -55,7 +55,7 @@ if args.dataset == 'LUAD':
     else:  # use existing data obejct
         filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt'
     data = torch.load(filepath)
-    data = generate_masks(data, 0.7, 0.2)
+    # data = generate_masks(data, 0.85, 0.1) #node masks for dataset train and test values and rest val
 else:
     # Planetoid dataset
     path_data = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
@@ -64,7 +64,7 @@ else:
 
 out_channels = args.outputchannels
 num_features = data.num_features
-#plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+# plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -166,13 +166,6 @@ def test(pos_edge_index, neg_edge_index):
         '''
     return model.test(z, pos_edge_index, neg_edge_index)
 
-#logging
-params = ''
-for arg in vars(args):
-    params += '{}: {} \n'.format(arg, getattr(args, arg) or '')
-writer.add_text('Parameters', params)
-writer.add_hparams(vars(args), {'linear': 0})
-
 
 losses = []
 aucs = []
@@ -186,7 +179,6 @@ for epoch in range(1, args.epochs + 1):
     aucs.append(auc)
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
-writer.add_scalar('Top', auc)
 
 def plot_auc(aucs):
     # plt.plot(losses)
@@ -233,7 +225,26 @@ def cluster_patients():
             kmeans.fit(kmeans_input)
             writer.add_scalar('SSE', kmeans.inertia_, k)
 
-        #categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        #df_y['category'] = pd.Series(categories)
+        # categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
+        # df_y['category'] = pd.Series(categories)
 
-cluster_patients()
+        # embedding with categories as colors and tSNE
+        # writer.add_embedding(kmeans_input, metadata=, metadata_header=, )
+
+
+# logging
+params = ''
+param_dict = vars(args)
+for arg in param_dict:
+    params += '{}: {} \n'.format(arg, getattr(args, arg) or '')
+writer.add_text('Parameters', params)
+writer.add_hparams(param_dict, {'AUC_final': auc})
+writer.add_scalar('Info', auc)
+
+cluster_patients()  # writes also
+
+writer.close()
+
+# save model
+# modelpath = os.path.join(os.getwd(), 'models')
+# torch.save(model.state_dict(), modelpath)
