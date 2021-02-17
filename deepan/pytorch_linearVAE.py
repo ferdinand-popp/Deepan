@@ -1,6 +1,7 @@
 import argparse
 import os
 import os.path as osp
+from datetime import date
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,24 +26,19 @@ parser.add_argument('--variational', default='True')
 parser.add_argument('--linear', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--epochs', type=int, default=200)
+parser.add_argument('--epochs', type=int, default=300)
 parser.add_argument('--lr', type=float, default=0.01)
-parser.add_argument('--cutoff', type=float, default=0.4)
+parser.add_argument('--cutoff', type=float, default=0.33)
 parser.add_argument('--visualize', action='store_true', default='False')
 parser.add_argument('--newdataset', action='store_true', default='True')
 parser.add_argument('--decay', type=float, default=0.6)
 parser.add_argument('--outputchannels', type=int, default=5)
-
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
-
 args = parser.parse_args()
 
-# Writer will output to ./runs/ directory by default
-_, dirs, _ = next(os.walk(r'/home/fpopp/PycharmProjects/Deepan/runs'))  # get folder in runs
-writer_folder = f'{len(dirs)}'  # number of folder +1 naming
-writer = SummaryWriter(r'../runs/{}'.format(writer_folder), comment='Help', filename_suffix='Yes')
 
+'''Dataset selection and generation'''
 # added line for our LUAD set
 if args.dataset == 'LUAD':
     if args.newdataset == 'True':
@@ -62,15 +58,13 @@ else:
     datasets = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
     data = datasets[0]
 
-out_channels = args.outputchannels
 num_features = data.num_features
+out_channels = args.outputchannels
 # plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
 '''Models'''
-
-
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GCNEncoder, self).__init__()
@@ -80,8 +74,6 @@ class GCNEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index).relu()
         return self.conv2(x, edge_index)
-
-
 class VariationalGCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(VariationalGCNEncoder, self).__init__()
@@ -92,8 +84,6 @@ class VariationalGCNEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index).relu()
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
-
-
 class LinearEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(LinearEncoder, self).__init__()
@@ -101,8 +91,6 @@ class LinearEncoder(torch.nn.Module):
 
     def forward(self, x, edge_index):
         return self.conv(x, edge_index)
-
-
 class VariationalLinearEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(VariationalLinearEncoder, self).__init__()
@@ -112,17 +100,14 @@ class VariationalLinearEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
-
 '''Selection'''
-
 if not args.variational:
     if not args.linear:
         model = GAE(GCNEncoder(num_features, out_channels))
-        model_name = 'Graph Autoencoder GCN'
+        model_name = 'GCN'
     else:
         model = GAE(LinearEncoder(num_features, out_channels))
         model_name = 'Linear encoder'
-
 else:
     if args.linear:
         model = VGAE(VariationalLinearEncoder(num_features, out_channels))
@@ -130,10 +115,18 @@ else:
 
     else:
         model = VGAE(VariationalGCNEncoder(num_features, out_channels))
-        model_name = 'Graph Variational Autoencoder GCN'
+        model_name = 'Variational GCN'
+
+'''Logging'''
+# Writer will output to ./runs/ directory by default
+logpath = os.path.join(os.path.split(os.getcwd())[0], f'runs/{date.today()}')
+if not os.path.exists(logpath):
+    os.makedirs(logpath)
+_, dirs, _ = next(os.walk(logpath))  # get folder in logpath
+writer_folder = f'{len(dirs)} - {model_name}'  # number of folder +1 naming
+writer = SummaryWriter(log_dir='../runs/{}/{}'.format(date.today(), writer_folder))
 
 '''GPU CUDA Connection and send data'''
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 x = data.x.to(device)
