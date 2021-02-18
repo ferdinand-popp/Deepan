@@ -10,6 +10,7 @@ import torch
 import torch_geometric.transforms as T
 from sklearn.manifold import TSNE
 import umap
+from sklearn.cluster import DBSCAN
 from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.datasets import Planetoid
@@ -178,12 +179,38 @@ def cluster_patients():
         # get representation (nodes, outputchannels(feature dimensions))
         z = model.encode(x, train_pos_edge_index)
         # Cluster embedded values using k-means.
-        kmeans_input = z.cpu().numpy()  # copies it to CPU
+        z_0 = z.cpu().numpy()  # copies it to CPU
 
-        z_1 = np.dot(kmeans_input, kmeans_input.T)  # inner dot product (nodes, nodes) returned
+        z_1 = np.dot(z_0, z_0.T)  # inner dot product (nodes, nodes) returned
         z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
         # symmetric and nonnegative representation (nodes, nodes) returned
-        for k in range(1, 11):
+
+        # PCA KMeans
+        # DBSCAN
+
+        # Visualizing
+        print('Projection')
+        if args.projection == 'TSNE':
+            projection = TSNE(n_components=2, random_state=123)
+        else:
+            projection = umap.UMAP(n_neighbors=30,
+                                   n_components=2,
+                                   random_state=42)  # more params
+        result = projection.fit_transform(z_2)
+        result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
+
+        plot_embedding(result_df)
+
+        clustering = DBSCAN(eps=3, min_samples=2).fit(z_0)
+        result_df['labels']=clustering.labels_
+
+        plot_embedding(result_df)
+        '''New clusters were identified using a spectral clustering algorithm, 
+        which was done by running kmeans on the top number of clusters eigenvectors 
+        of the normalized Laplacian z_2  
+        #eigenvalues, eigenvectors = np.linalg.eig(z_2)
+        
+                for k in range(1, 11):
             kmeans = KMeans(n_clusters=k, random_state=0)
             kmeans.fit(kmeans_input)
             # Docu Elbow Inertia
@@ -193,21 +220,6 @@ def cluster_patients():
             distortion = sum(np.min(cdist(kmeans_input, kmeans.cluster_centers_, 'euclidean'), axis=1)) / \
                          kmeans_input.shape[0]
             writer.add_scalar('Distortion', distortion, k)
-
-        # Visualizing
-        print('Projection')
-        if args.projection == 'TSNE':
-            projection = TSNE(n_components=2, random_state=123)
-        else:
-            projection = umap.UMAP()
-        result = projection.fit_transform(kmeans_input)
-        result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1], 'category': kmeans.labels_})
-        plot_embedding(result_df)
-
-        '''New clusters were identified using a spectral clustering algorithm, 
-        which was done by running kmeans on the top number of clusters eigenvectors 
-        of the normalized Laplacian z_2  
-        #eigenvalues, eigenvectors = np.linalg.eig(z_2)
 
         # embedding with categories as colors and tSNE
         # writer.add_embedding(kmeans_input, metadata=categories) # not executable on firefox due to WebGL acceleration
@@ -222,13 +234,17 @@ colors = [
 
 def plot_embedding(df):
     fig = plt.figure(figsize=(8, 8))
-    for i in range(0, df.category.unique().max() + 1):
-        df_i = df.loc[df['category'] == i]
-        plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i])
-    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.projection, model_name, data.num_features, 0)
+    if len(df.columns) > 2:  # contains labels?
+        for i in range(0, df.labels.unique().max() + 1):
+            df_i = df.loc[df['label'] == i]
+            plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i])
+    else:
+        plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
+    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.projection, model_name, data.num_features, best_val_auc)
     plt.title(title)
-    plt.axis('off')
-    #plt.show()
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    # plt.show()
     writer.add_figure('Projection', fig, epoch)
 
 
@@ -243,8 +259,6 @@ for epoch in range(1, args.epochs + 1):
 
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
-    if epoch%40==0:
-        cluster_patients()
 
 def plot_auc(aucs):
     # plt.plot(losses)
@@ -256,9 +270,6 @@ def plot_auc(aucs):
     # plt.show()
 
     print('Done')
-
-
-
 
 
 '''Logging Parameters'''

@@ -8,6 +8,8 @@ def get_de():
 
     ser = df.var(axis=1)
 
+    #highest standarddeviation
+
     # sort by var
     ser = ser.sort_values(ascending=False)
 
