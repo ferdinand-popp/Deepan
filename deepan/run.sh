@@ -1,7 +1,7 @@
 #!/bin/bash
-for linear in 'True'
+for linear in 'True' 'False'
 do
-  for variational in 'False'
+  for variational in 'False' 'True'
   do
       for epochs in 300
       do
@@ -11,10 +11,14 @@ do
               do
                   for outputchannels in 208
                   do
-                              python pytorch_linearVAE.py --linear=${linear} --variational=${variational} --epochs=${epochs} --lr=${lr} --outputchannels=${outputchannels} --cutoff=${cutoff}
+                      for projection in 'UMAP'
+                      do
+
+                              python pytorch_linearVAE.py --linear=${linear} --variational=${variational} --epochs=${epochs} --lr=${lr} --outputchannels=${outputchannels} --cutoff=${cutoff} --projection=${projection}
                       done
                   done
               done
           done
       done
   done
+done

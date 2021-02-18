@@ -8,11 +8,14 @@ import pandas as pd
 import numpy as np
 import torch
 import torch_geometric.transforms as T
+from sklearn.manifold import TSNE
+import umap
 from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
+from scipy.spatial.distance import cdist
 
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
@@ -23,16 +26,18 @@ torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--variational', default='False')
-parser.add_argument('--linear', default='False')
+parser.add_argument('--linear', default='True')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
+parser.add_argument('--projection', type=str, default='UMAP',
+                    choices=['TSNE', 'UMAP'])
 parser.add_argument('--epochs', type=int, default=300)
-parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--lr', type=float, default=0.005)
 parser.add_argument('--cutoff', type=float, default=0.5)
 parser.add_argument('--visualize', action='store_true', default='False')
-parser.add_argument('--newdataset', action='store_true', default='True')
+parser.add_argument('--newdataset', action='store_true', default='False')
 parser.add_argument('--decay', type=float, default=0.6)
-parser.add_argument('--outputchannels', type=int, default=5)
+parser.add_argument('--outputchannels', type=int, default=208)
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
 args = parser.parse_args()
@@ -59,7 +64,7 @@ else:
 
 num_features = data.num_features
 out_channels = args.outputchannels
-#plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+# plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -168,10 +173,68 @@ def test(pos_edge_index, neg_edge_index):
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
+def cluster_patients():
+    with torch.no_grad():
+        # get representation (nodes, outputchannels(feature dimensions))
+        z = model.encode(x, train_pos_edge_index)
+        # Cluster embedded values using k-means.
+        kmeans_input = z.cpu().numpy()  # copies it to CPU
+
+        z_1 = np.dot(kmeans_input, kmeans_input.T)  # inner dot product (nodes, nodes) returned
+        z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
+        # symmetric and nonnegative representation (nodes, nodes) returned
+        for k in range(1, 11):
+            kmeans = KMeans(n_clusters=k, random_state=0)
+            kmeans.fit(kmeans_input)
+            # Docu Elbow Inertia
+            writer.add_scalar('SSE', kmeans.inertia_, k)
+
+            # Docu Elbow Distortion
+            distortion = sum(np.min(cdist(kmeans_input, kmeans.cluster_centers_, 'euclidean'), axis=1)) / \
+                         kmeans_input.shape[0]
+            writer.add_scalar('Distortion', distortion, k)
+
+        # Visualizing
+        print('Projection')
+        if args.projection == 'TSNE':
+            projection = TSNE(n_components=2, random_state=123)
+        else:
+            projection = umap.UMAP()
+        result = projection.fit_transform(kmeans_input)
+        result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1], 'category': kmeans.labels_})
+        plot_embedding(result_df)
+
+        '''New clusters were identified using a spectral clustering algorithm, 
+        which was done by running kmeans on the top number of clusters eigenvectors 
+        of the normalized Laplacian z_2  
+        #eigenvalues, eigenvectors = np.linalg.eig(z_2)
+
+        # embedding with categories as colors and tSNE
+        # writer.add_embedding(kmeans_input, metadata=categories) # not executable on firefox due to WebGL acceleration
+         '''
+
+
+colors = [
+    '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700', '#092345', '#ffc456', '#69b1b3',
+    '#76c474', '#ebdf6a'
+]
+
+
+def plot_embedding(df):
+    fig = plt.figure(figsize=(8, 8))
+    for i in range(0, df.category.unique().max() + 1):
+        df_i = df.loc[df['category'] == i]
+        plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i])
+    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.projection, model_name, data.num_features, 0)
+    plt.title(title)
+    plt.axis('off')
+    #plt.show()
+    writer.add_figure('Projection', fig, epoch)
+
+
 best_val_auc = 0
 for epoch in range(1, args.epochs + 1):
     loss = train()
-    losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
     if auc > best_val_auc:
         best_val_auc = auc
@@ -180,6 +243,8 @@ for epoch in range(1, args.epochs + 1):
 
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
+    if epoch%40==0:
+        cluster_patients()
 
 def plot_auc(aucs):
     # plt.plot(losses)
@@ -193,62 +258,7 @@ def plot_auc(aucs):
     print('Done')
 
 
-'''
-@torch.no_grad()
-def plot_points(colors):
-    model.eval()
-    z = model.encode(data.x, data.train_pos_edge_index)
-    z = TSNE(n_components=2).fit_transform(z.cpu().numpy())
-    # y = data.y.cpu().numpy()
 
-    plt.figure(figsize=(8, 8))
-    for i in range(dataset.num_classes):
-        # plt.scatter(z[y == i, 0], z[y == i, 1], s=20, color=colors[i])
-        plt.scatter(z[i, 0], z[i, 1], s=20, color=colors[i])
-    plt.axis('off')
-    plt.show()
-
-colors = [
-    '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700'
-]
-
-plot_points(colors)
-'''
-
-
-def cluster_patients():
-    with torch.no_grad():
-        # get representation (nodes, outputchannels(feature dimensions))
-        z = model.encode(x, train_pos_edge_index)
-        # Cluster embedded values using k-means.
-        kmeans_input = z.cpu().numpy()  # copies it to CPU
-        for k in range(1, 11):
-            kmeans = KMeans(n_clusters=k, random_state=0)
-            kmeans.fit(kmeans_input)
-            writer.add_scalar('SSE', kmeans.inertia_, k)
-
-        categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        # df_y['category'] = pd.Series(categories)
-
-        z_1 = np.dot(kmeans_input, kmeans_input.T)  # inner dot product (nodes, nodes) returned
-        z_2 = (np.absolute(z_1) + np.absolute(
-            z_1.T)) / 2  # symmetric and nonnegative representation (nodes, nodes) returned
-
-        eigenvalues, eigenvectors = np.linalg.eig(z_2)
-        '''New clusters were identified using a spectral clustering algorithm, 
-        which was done by running kmeans on the top number of clusters eigenvectors 
-        of the normalized Laplacian z_2   '''
-
-        # embedding with categories as colors and tSNE
-        # writer.add_embedding(kmeans_input, metadata=categories) # not executable on firefox due to WebGL acceleration
-
-
-def plot_tsne():
-    tsne = TSNE(n_components=2, verbose=1, random_state=123)
-    z = tsne.fit_transform(x)
-    df["y"] = y
-    df["comp-1"] = z[:, 0]
-    df["comp-2"] = z[:, 1]
 
 
 '''Logging Parameters'''
@@ -260,9 +270,6 @@ for arg in param_dict:
 writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
-
-model(data.x, data.edge_index)
-writer.add_graph(model, [data.x, data.edge_index])
 
 cluster_patients()  # writes also
 
