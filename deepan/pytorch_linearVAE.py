@@ -26,19 +26,22 @@ from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', default='False')
-parser.add_argument('--linear', default='True')
+# Data
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--projection', type=str, default='UMAP',
-                    choices=['TSNE', 'UMAP'])
+parser.add_argument('--newdataset', action='store_true', default='True')
+parser.add_argument('--cutoff', type=float, default=0.5)
+# Model
+parser.add_argument('--variational', default='False')
+parser.add_argument('--linear', default='True')
 parser.add_argument('--epochs', type=int, default=300)
 parser.add_argument('--lr', type=float, default=0.005)
-parser.add_argument('--cutoff', type=float, default=0.5)
-parser.add_argument('--visualize', action='store_true', default='False')
-parser.add_argument('--newdataset', action='store_true', default='False')
 parser.add_argument('--decay', type=float, default=0.6)
 parser.add_argument('--outputchannels', type=int, default=208)
+# Embedding
+parser.add_argument('--projection', type=str, default='UMAP',
+                    choices=['TSNE', 'UMAP'])
+parser.add_argument('--visualize', action='store_true', default='False')
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
 args = parser.parse_args()
@@ -174,7 +177,7 @@ def test(pos_edge_index, neg_edge_index):
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
-def cluster_patients():
+def cluster_patients(df_y):
     with torch.no_grad():
         # get representation (nodes, outputchannels(feature dimensions))
         z = model.encode(x, train_pos_edge_index)
@@ -184,9 +187,6 @@ def cluster_patients():
         z_1 = np.dot(z_0, z_0.T)  # inner dot product (nodes, nodes) returned
         z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
         # symmetric and nonnegative representation (nodes, nodes) returned
-
-        # PCA KMeans
-        # DBSCAN
 
         # Visualizing
         print('Projection')
@@ -199,10 +199,9 @@ def cluster_patients():
         result = projection.fit_transform(z_2)
         result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
 
-        plot_embedding(result_df)
-
-        clustering = DBSCAN(eps=3, min_samples=2).fit(z_0)
-        result_df['labels']=clustering.labels_
+        clustering = DBSCAN(eps=3, min_samples=2).fit(result_df.to_numpy())
+        result_df['labels'] = clustering.labels_
+        df_y['labels'] = clustering.labels_
 
         plot_embedding(result_df)
         '''New clusters were identified using a spectral clustering algorithm, 
@@ -235,9 +234,9 @@ colors = [
 def plot_embedding(df):
     fig = plt.figure(figsize=(8, 8))
     if len(df.columns) > 2:  # contains labels?
-        for i in range(0, df.labels.unique().max() + 1):
-            df_i = df.loc[df['label'] == i]
-            plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i])
+        for i in df.labels.unique():
+            df_i = df.loc[df['labels'] == i]
+            plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2])
     else:
         plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
     title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.projection, model_name, data.num_features, best_val_auc)
@@ -282,7 +281,7 @@ writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
 
-cluster_patients()  # writes also
+cluster_patients(df_y)  # writes also
 
 writer.close()
 
