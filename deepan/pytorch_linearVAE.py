@@ -203,6 +203,10 @@ def cluster_patients(df_y):
         result_df['labels'] = clustering.labels_
         df_y['labels'] = clustering.labels_
 
+        df_y.rename(columns= {'OS_time_days':'days_to_death', 'OS_event':'vital_status'}, inplace = True)
+        df_y.index.name = None
+        df_y.to_csv(os.path.join(logpath, 'df_y.csv'), index=True,sep="\t")
+
         plot_embedding(result_df)
         '''New clusters were identified using a spectral clustering algorithm, 
         which was done by running kmeans on the top number of clusters eigenvectors 
