@@ -22,13 +22,13 @@ from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', default='True')
+parser.add_argument('--variational', default='False')
 parser.add_argument('--linear', default='False')
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
 parser.add_argument('--epochs', type=int, default=300)
 parser.add_argument('--lr', type=float, default=0.01)
-parser.add_argument('--cutoff', type=float, default=0.33)
+parser.add_argument('--cutoff', type=float, default=0.5)
 parser.add_argument('--visualize', action='store_true', default='False')
 parser.add_argument('--newdataset', action='store_true', default='True')
 parser.add_argument('--decay', type=float, default=0.6)
@@ -36,7 +36,6 @@ parser.add_argument('--outputchannels', type=int, default=5)
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
 args = parser.parse_args()
-
 
 '''Dataset selection and generation'''
 # added line for our LUAD set
@@ -60,11 +59,13 @@ else:
 
 num_features = data.num_features
 out_channels = args.outputchannels
-# plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+#plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
 '''Models'''
+
+
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GCNEncoder, self).__init__()
@@ -74,6 +75,8 @@ class GCNEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index).relu()
         return self.conv2(x, edge_index)
+
+
 class VariationalGCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(VariationalGCNEncoder, self).__init__()
@@ -84,6 +87,8 @@ class VariationalGCNEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index).relu()
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
+
+
 class LinearEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(LinearEncoder, self).__init__()
@@ -91,6 +96,8 @@ class LinearEncoder(torch.nn.Module):
 
     def forward(self, x, edge_index):
         return self.conv(x, edge_index)
+
+
 class VariationalLinearEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(VariationalLinearEncoder, self).__init__()
@@ -100,22 +107,23 @@ class VariationalLinearEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
+
 '''Selection'''
-if not args.variational:
-    if not args.linear:
+if args.variational == 'False':
+    if args.linear == 'False':
         model = GAE(GCNEncoder(num_features, out_channels))
         model_name = 'GCN'
     else:
         model = GAE(LinearEncoder(num_features, out_channels))
-        model_name = 'Linear encoder'
+        model_name = 'Linear'
 else:
-    if args.linear:
+    if args.linear == 'True':
         model = VGAE(VariationalLinearEncoder(num_features, out_channels))
-        model_name = 'Variantional Linear Encoder'
+        model_name = 'VarLinear'
 
     else:
         model = VGAE(VariationalGCNEncoder(num_features, out_channels))
-        model_name = 'Variational GCN'
+        model_name = 'VarGCN'
 
 '''Logging'''
 # Writer will output to ./runs/ directory by default
@@ -139,7 +147,7 @@ def train():
     optimizer.zero_grad()
     z = model.encode(x, train_pos_edge_index)
     loss = model.recon_loss(z, train_pos_edge_index)
-    if args.variational:
+    if args.variational == 'True':
         loss = loss + (1 / data.num_nodes) * model.kl_loss()
     loss.backward()
     optimizer.step()
@@ -160,16 +168,16 @@ def test(pos_edge_index, neg_edge_index):
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
-losses = []
-aucs = []
+best_val_auc = 0
 for epoch in range(1, args.epochs + 1):
     loss = train()
     losses.append(loss)
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
+    if auc > best_val_auc:
+        best_val_auc = auc
     writer.add_scalar('auc', auc, epoch)
     writer.add_scalar('loss', loss, epoch)
 
-    aucs.append(auc)
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
 
@@ -210,6 +218,7 @@ plot_points(colors)
 
 def cluster_patients():
     with torch.no_grad():
+        # get representation (nodes, outputchannels(feature dimensions))
         z = model.encode(x, train_pos_edge_index)
         # Cluster embedded values using k-means.
         kmeans_input = z.cpu().numpy()  # copies it to CPU
@@ -218,21 +227,42 @@ def cluster_patients():
             kmeans.fit(kmeans_input)
             writer.add_scalar('SSE', kmeans.inertia_, k)
 
-        # categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
+        categories = kmeans.labels_  # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
         # df_y['category'] = pd.Series(categories)
 
+        z_1 = np.dot(kmeans_input, kmeans_input.T)  # inner dot product (nodes, nodes) returned
+        z_2 = (np.absolute(z_1) + np.absolute(
+            z_1.T)) / 2  # symmetric and nonnegative representation (nodes, nodes) returned
+
+        eigenvalues, eigenvectors = np.linalg.eig(z_2)
+        '''New clusters were identified using a spectral clustering algorithm, 
+        which was done by running kmeans on the top number of clusters eigenvectors 
+        of the normalized Laplacian z_2   '''
+
         # embedding with categories as colors and tSNE
-        # writer.add_embedding(kmeans_input, metadata=, metadata_header=, )
+        # writer.add_embedding(kmeans_input, metadata=categories) # not executable on firefox due to WebGL acceleration
 
 
-# logging
-params = ''
+def plot_tsne():
+    tsne = TSNE(n_components=2, verbose=1, random_state=123)
+    z = tsne.fit_transform(x)
+    df["y"] = y
+    df["comp-1"] = z[:, 0]
+    df["comp-2"] = z[:, 1]
+
+
+'''Logging Parameters'''
 param_dict = vars(args)
+param_dict['Model'] = model_name
+params = ''
 for arg in param_dict:
     params += '{}: {} \n'.format(arg, getattr(args, arg) or '')
 writer.add_text('Parameters', params)
-writer.add_hparams(param_dict, {'AUC_final': auc})
-writer.add_scalar('Info', auc)
+writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
+writer.add_scalar('AUC_best', best_val_auc)
+
+model(data.x, data.edge_index)
+writer.add_graph(model, [data.x, data.edge_index])
 
 cluster_patients()  # writes also
 

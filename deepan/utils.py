@@ -76,7 +76,7 @@ def plot_in_out_degree_distributions(edge_index, num_of_nodes, dataset_name):
 
     fig = plt.figure(figsize=(12, 8), dpi=100)  # otherwise plots are really small in Jupyter Notebook
     fig.subplots_adjust(hspace=0.6)
-
+    '''
     plt.subplot(311)
     plt.plot(in_degrees, color='red')
     plt.xlabel('node id');
@@ -88,13 +88,13 @@ def plot_in_out_degree_distributions(edge_index, num_of_nodes, dataset_name):
     plt.xlabel('node id');
     plt.ylabel('out-degree count');
     plt.title('Out degree for different node ids')
-
+    '''
     plt.subplot(313)
     plt.plot(hist, color='blue')
     plt.xlabel('node degree')
     plt.ylabel('# nodes for a given out-degree')
     plt.title(f'Node out-degree distribution for {dataset_name} dataset')
-    plt.xticks(np.arange(0, len(hist), 5.0))
+    plt.xticks(np.arange(0, len(hist), 10.0))
 
     plt.grid(True)
     plt.show()

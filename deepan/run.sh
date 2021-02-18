@@ -5,9 +5,9 @@ do
   do
       for epochs in 300
       do
-          for lr in 0.006 0.008 0.01
+          for lr in 0.005
           do
-              for cutoff in 0.33
+              for cutoff in 0.5
               do
                   for outputchannels in 208
                   do
