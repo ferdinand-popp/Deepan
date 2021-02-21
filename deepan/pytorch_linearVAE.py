@@ -8,8 +8,9 @@ import pandas as pd
 import numpy as np
 import torch
 import torch_geometric.transforms as T
-from sklearn.manifold import TSNE
+from sklearn.manifold import TSNE, MDS
 import umap
+from sklearn.metrics import silhouette_score
 from sklearn.cluster import DBSCAN
 from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
@@ -176,38 +177,90 @@ def test(pos_edge_index, neg_edge_index):
         '''
     return model.test(z, pos_edge_index, neg_edge_index)
 
+def projection(z, dimensions=2):
+    print('Projection')
+    if args.projection == 'TSNE':
+        projection = TSNE(n_components=dimensions, random_state=123)
+    if args.projection == 'UMAP':
+        projection = umap.UMAP(n_neighbors=30,
+                               n_components=dimensions,
+                               random_state=42)  # more params
+    if args.projection == 'MDS':
+        projection = MDS(n_components=dimensions)
+    if args.projection == 'LEIDEN':
+        #see https://github.com/vtraag/leidenalg IGraph
+    for graphs?
+    else:
+        print('No projection')
+        pass
+    result = projection.fit_transform(z)
+    #TODO add all dimens into frame
+    result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
+    return result_df
 
 def cluster_patients(df_y):
     with torch.no_grad():
         # get representation (nodes, outputchannels(feature dimensions))
         z = model.encode(x, train_pos_edge_index)
-        # Cluster embedded values using k-means.
         z_0 = z.cpu().numpy()  # copies it to CPU
 
+        #transform presentation like in DEEPAN
         z_1 = np.dot(z_0, z_0.T)  # inner dot product (nodes, nodes) returned
         z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
         # symmetric and nonnegative representation (nodes, nodes) returned
 
-        # Visualizing
-        print('Projection')
-        if args.projection == 'TSNE':
-            projection = TSNE(n_components=2, random_state=123)
-        else:
-            projection = umap.UMAP(n_neighbors=30,
-                                   n_components=2,
-                                   random_state=42)  # more params
-        result = projection.fit_transform(z_2)
-        result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
+        # Embedding projection
+        result_df = projection(z_0) #UMAP, TSNE, LEIDEN, MDS
 
+        #Clustering input result df
         clustering = DBSCAN(eps=3, min_samples=2).fit(result_df.to_numpy())
-        result_df['labels'] = clustering.labels_
-        df_y['labels'] = clustering.labels_
+        labels = clustering.labels_
+        # Number of clusters in labels, ignoring noise if present.
+        n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise_ = list(labels).count(-1)
+        if True:
+            print('Estimated number of clusters: %d' % n_clusters_)
+            print('Estimated number of noise points: %d' % n_noise_)
+            print("Silhouette Coefficient: %0.3f"
+                  % silhouette_score(result_df, labels))
+            #Plot
+            # Black removed and is used for noise instead.
+            unique_labels = set(labels)
+            colors_ = [plt.cm.Spectral(each)
+                      for each in np.linspace(0, 1, len(unique_labels))]
+            for k, col in zip(unique_labels, colors_):
+                if k == -1:
+                    # Black used for noise.
+                    col = [0, 0, 0, 1]
 
+                class_member_mask = (labels == k)
+
+                core_samples_mask = np.zeros_like(labels, dtype=bool)
+                core_samples_mask[clustering.core_sample_indices_] = True
+                xy = result_df[class_member_mask & core_samples_mask]
+                plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                         markeredgecolor='k', markersize=14)
+
+                xy = result_df[class_member_mask & ~core_samples_mask]
+                plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                         markeredgecolor='k', markersize=6)
+
+            plt.title('Estimated number of clusters: %d' % n_clusters_)
+            plt.show()
+
+        result_df['labels'] = labels
+        df_y['labels'] = labels
+
+        #Plotting clustering
+        plot_embedding(result_df)
+
+        #Make Df ready for survival analysis
         df_y.rename(columns= {'OS_time_days':'days_to_death', 'OS_event':'vital_status'}, inplace = True)
         df_y.index.name = None
         df_y.to_csv(os.path.join(logpath, 'df_y.csv'), index=True,sep="\t")
 
-        plot_embedding(result_df)
+
+
         '''New clusters were identified using a spectral clustering algorithm, 
         which was done by running kmeans on the top number of clusters eigenvectors 
         of the normalized Laplacian z_2  
@@ -250,7 +303,7 @@ def plot_embedding(df):
     # plt.show()
     writer.add_figure('Projection', fig, epoch)
 
-
+#Train Network
 best_val_auc = 0
 for epoch in range(1, args.epochs + 1):
     loss = train()
@@ -285,6 +338,7 @@ writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
 
+#Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also
 
 writer.close()
