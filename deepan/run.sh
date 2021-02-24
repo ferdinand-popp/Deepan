@@ -1,7 +1,7 @@
 #!/bin/bash
-for linear in 'True'
+for linear in 'True' 'False'
 do
-  for variational in 'False'
+  for variational in 'False' 'True'
   do
       for epochs in 300
       do

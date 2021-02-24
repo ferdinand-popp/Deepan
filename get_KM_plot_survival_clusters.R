@@ -1,5 +1,17 @@
 # The script for survival analysis (overall survival, progression free survival, etc) and generate KaplanMeier estimator plots
 rm(list = ls())
+
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+
+if (length(args)==0) {
+	print('Arguments needed')
+  	input_path = "/home/fpopp/PycharmProjects/Deepan/runs/2021-02-24/df_y.csv"
+	output_path = "runs/KM_plot.pdf"
+} else if (length(args)==1) {
+input_path = args[0]
+output_path = args[1]
+	}
 # Requirement package
 library(survival)
 
@@ -7,15 +19,17 @@ library(survival)
 # requires, sample-ID, survival time, survival events (0=alive, 1=dead) and group of sample
 # an example file --> Overall_Surv_CAF_Group.txt
 
-samples<-read.table("df_y.csv", header=TRUE, sep="\t", dec = ".")
+samples<-read.table(input_path, header=TRUE, sep="\t", dec = ".")
+#kick blacked out patients by DBSCAN
+print(samples)
+samples<-samples[!(samples$labels=='-1'),]
+print(samples)
+
 # survival time
 SURV<-samples$days_to_death
 # survival events
 EVENT<-samples$vital_status
 # groups of samples
-vec <- rep(c(0,1,2,3),times= 103)
-lab <- vec[0:511]
-samples$labels <- lab
 TYPE<-as.factor(samples$labels)
 
 PSURV<-c()
@@ -51,7 +65,7 @@ loHR1<-exp(1)^(lHR1-1.96/sqrt(V))
 CI<- paste(round(loHR1,2),round(upHR1,2),sep="-")
 
 # generate KM plot
-pdf(file="KM_plot.pdf",width = 18, height = 15)
+pdf(file= output_path, width = 18, height = 15)
 par(lwd=1, tcl=0.5, mar=c(7,7,5,5),yaxs = 'r')        
 	plot(BRC.bytype, col=COLI, lwd=5,xlab="survival time (days)", ylab="Overall survival probability", xlim = c(0,7300), cex.lab=2.5, cex.axis=2.5)
         text(6000,0.8,paste("p=",PSURV,sep=""), col="black", cex=2)

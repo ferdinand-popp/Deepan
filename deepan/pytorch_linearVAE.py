@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser()
 # Data
 parser.add_argument('--dataset', type=str, default='LUAD',
                     choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--newdataset', action='store_true', default='True')
+parser.add_argument('--newdataset', action='store_true', default='False')
 parser.add_argument('--cutoff', type=float, default=0.5)
 # Model
 parser.add_argument('--variational', default='False')
@@ -41,8 +41,8 @@ parser.add_argument('--decay', type=float, default=0.6)
 parser.add_argument('--outputchannels', type=int, default=208)
 # Embedding
 parser.add_argument('--projection', type=str, default='UMAP',
-                    choices=['TSNE', 'UMAP'])
-parser.add_argument('--visualize', action='store_true', default='False')
+                    choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
+# parser.add_argument('--visualize', action='store_true', default='False')
 # Logging/debugging/checkpoint related (helps a lot with experimentation)
 # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
 args = parser.parse_args()
@@ -58,8 +58,10 @@ if args.dataset == 'LUAD':
         # 3
         dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
     else:  # use existing data obejct
-        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-11.pt'
+        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-24.pt'
+    # load data
     data = torch.load(filepath)
+    df_y = data.survival
     # data = generate_masks(data, 0.85, 0.1) #node masks for dataset train and test values and rest val
 else:
     # Planetoid dataset
@@ -118,7 +120,7 @@ class VariationalLinearEncoder(torch.nn.Module):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
 
-'''Selection'''
+'''Selection of Model'''
 if args.variational == 'False':
     if args.linear == 'False':
         model = GAE(GCNEncoder(num_features, out_channels))
@@ -141,7 +143,8 @@ logpath = os.path.join(os.path.split(os.getcwd())[0], f'runs/{date.today()}')
 if not os.path.exists(logpath):
     os.makedirs(logpath)
 _, dirs, _ = next(os.walk(logpath))  # get folder in logpath
-writer_folder = f'{len(dirs)} - {model_name}'  # number of folder +1 naming
+writer_folder = f'{len(dirs)}-{model_name}'  # number of folder +1 naming
+path_complete = os.path.join(logpath, writer_folder)
 writer = SummaryWriter(log_dir='../runs/{}/{}'.format(date.today(), writer_folder))
 
 '''GPU CUDA Connection and send data'''
@@ -154,7 +157,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # add decay?
 
 def train():
     model.train()
-    optimizer.zero_grad()
+    optimizer.zero_grad()  # no gradient descent
     z = model.encode(x, train_pos_edge_index)
     loss = model.recon_loss(z, train_pos_edge_index)
     if args.variational == 'True':
@@ -168,35 +171,156 @@ def test(pos_edge_index, neg_edge_index):
     model.eval()
     with torch.no_grad():
         z = model.encode(x, train_pos_edge_index)
-        meb = z.cpu().numpy()  # return nxn numpy array
-        '''
-        # Cluster embedded values using k-means.
-        kmeans_input = z.cpu().numpy() #copies it to CPU 
-        kmeans = KMeans(n_clusters=args.clusters, random_state=0).fit(kmeans_input)
-        kmeans.labels # e.g: array([1, 1, 1, 0, 0, 0], dtype=int32)
-        '''
     return model.test(z, pos_edge_index, neg_edge_index)
+
 
 def projection(z, dimensions=2):
     print('Projection')
     if args.projection == 'TSNE':
         projection = TSNE(n_components=dimensions, random_state=123)
-    if args.projection == 'UMAP':
-        projection = umap.UMAP(n_neighbors=30,
-                               n_components=dimensions,
-                               random_state=42)  # more params
-    if args.projection == 'MDS':
+    elif args.projection == 'UMAP':
+        projection = umap.UMAP(n_components=dimensions, random_state=42)  # n_neighbors=30
+    elif args.projection == 'MDS':
         projection = MDS(n_components=dimensions)
-    if args.projection == 'LEIDEN':
-        #see https://github.com/vtraag/leidenalg IGraph
-    for graphs?
+    elif args.projection == 'LEIDEN':
+        # see https://github.com/vtraag/leidenalg IGraph
+        pass
+    # for graphs?
     else:
         print('No projection')
         pass
     result = projection.fit_transform(z)
-    #TODO add all dimens into frame
+    # TODO add all dimens into frame
     result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
     return result_df
+
+
+def plot_silhoutte_comparison(result_df):
+    n_clusters = len(set(result_df.labels))
+    X = result_df.iloc[:, [0, 1]].to_numpy()
+    y = result_df.loc['labels'].to_numpy()
+    # Create a subplot with 1 row and 2 columns
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    fig.set_size_inches(18, 7)
+
+    # The 1st subplot is the silhouette plot
+    # The silhouette coefficient can range from -1, 1 but in this example all
+    # lie within [-0.1, 1]
+    ax1.set_xlim([-0.1, 1])
+    # The (n_clusters+1)*10 is for inserting blank space between silhouette
+    # plots of individual clusters, to demarcate them clearly.
+    ax1.set_ylim([0, len(X) + (n_clusters + 1) * 10])
+
+    # The silhouette_score gives the average value for all the samples.
+    # This gives a perspective into the density and separation of the formed
+    # clusters
+    silhouette_avg = silhouette_score(X, y)
+    print("For n_clusters =", n_clusters,
+          "The average silhouette_score is :", silhouette_avg)
+
+    # Compute the silhouette scores for each sample
+    sample_silhouette_values = silhouette_samples(X, y)
+
+    y_lower = 10
+    for i in range(n_clusters):
+        # Aggregate the silhouette scores for samples belonging to
+        # cluster i, and sort them
+        ith_cluster_silhouette_values = \
+            sample_silhouette_values[y == i]
+
+        ith_cluster_silhouette_values.sort()
+
+        size_cluster_i = ith_cluster_silhouette_values.shape[0]
+        y_upper = y_lower + size_cluster_i
+
+        color = cm.nipy_spectral(float(i) / n_clusters)
+        ax1.fill_betweenx(np.arange(y_lower, y_upper),
+                          0, ith_cluster_silhouette_values,
+                          facecolor=color, edgecolor=color, alpha=0.7)
+
+        # Label the silhouette plots with their cluster numbers at the middle
+        ax1.text(-0.05, y_lower + 0.5 * size_cluster_i, str(i))
+
+        # Compute the new y_lower for next plot
+        y_lower = y_upper + 10  # 10 for the 0 samples
+
+    ax1.set_title("The silhouette plot for the various clusters.")
+    ax1.set_xlabel("The silhouette coefficient values")
+    ax1.set_ylabel("Cluster label")
+
+    # The vertical line for average silhouette score of all the values
+    ax1.axvline(x=silhouette_avg, color="red", linestyle="--")
+
+    ax1.set_yticks([])  # Clear the yaxis labels / ticks
+    ax1.set_xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
+
+    '''
+    # 2nd Plot showing the actual clusters formed
+    colors = cm.nipy_spectral(cluster_labels.astype(float) / n_clusters)
+    ax2.scatter(X[:, 0], X[:, 1], marker='.', s=30, lw=0, alpha=0.7,
+                c=colors, edgecolor='k')
+
+    # Labeling the clusters
+    centers = clusterer.cluster_centers_
+    # Draw white circles at cluster centers
+    ax2.scatter(centers[:, 0], centers[:, 1], marker='o',
+                c="white", alpha=1, s=200, edgecolor='k')
+
+    for i, c in enumerate(centers):
+        ax2.scatter(c[0], c[1], marker='$%d$' % i, alpha=1,
+                    s=50, edgecolor='k')
+
+    ax2.set_title("The visualization of the clustered data.")
+    ax2.set_xlabel("Feature space for the 1st feature")
+    ax2.set_ylabel("Feature space for the 2nd feature")
+    '''
+
+    plt.suptitle(("Silhouette analysis for KMeans clustering on sample data "
+                  "with n_clusters = %d" % n_clusters),
+                 fontsize=14, fontweight='bold')
+
+    plt.show()
+
+
+def clustering_points(result_df):
+    # Clustering input result df
+    clustering = DBSCAN(min_samples=2).fit(result_df.to_numpy())
+    labels = clustering.labels_
+    # Number of clusters in labels, ignoring noise if present.
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    n_noise_ = list(labels).count(-1)
+    data.silhoutte_score = silhouette_score(result_df, labels)
+    print(f'DBSCAN: Clusters: {n_clusters_}, Excluded points:{n_noise_}')
+
+    # PLot silhoutte
+    fig_silhoutte = plt.figure(figsize=(8, 8))
+    # Black removed and is used for noise instead.
+    unique_labels = set(labels)
+    colors_ = [plt.cm.Spectral(each)
+               for each in np.linspace(0, 1, len(unique_labels))]
+    for k, col in zip(unique_labels, colors_):
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+
+        class_member_mask = (labels == k)
+
+        core_samples_mask = np.zeros_like(labels, dtype=bool)
+        core_samples_mask[clustering.core_sample_indices_] = True
+        xy = result_df[class_member_mask & core_samples_mask]
+        plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
+                 markeredgecolor='k', markersize=14)
+
+        xy = result_df[class_member_mask & ~core_samples_mask]
+        plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
+                 markeredgecolor='k', markersize=6)
+
+    plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
+    # plt.show()
+    writer.add_figure('Clustering', fig_silhoutte, epoch)
+
+    return labels
+
 
 def cluster_patients(df_y):
     with torch.no_grad():
@@ -204,62 +328,25 @@ def cluster_patients(df_y):
         z = model.encode(x, train_pos_edge_index)
         z_0 = z.cpu().numpy()  # copies it to CPU
 
-        #transform presentation like in DEEPAN
+        # transform presentation like in DEEPAN
         z_1 = np.dot(z_0, z_0.T)  # inner dot product (nodes, nodes) returned
         z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
         # symmetric and nonnegative representation (nodes, nodes) returned
 
         # Embedding projection
-        result_df = projection(z_0) #UMAP, TSNE, LEIDEN, MDS
+        result_df = projection(z_0)  # UMAP, TSNE, LEIDEN, MDS
 
-        #Clustering input result df
-        clustering = DBSCAN(eps=3, min_samples=2).fit(result_df.to_numpy())
-        labels = clustering.labels_
-        # Number of clusters in labels, ignoring noise if present.
-        n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise_ = list(labels).count(-1)
-        if True:
-            print('Estimated number of clusters: %d' % n_clusters_)
-            print('Estimated number of noise points: %d' % n_noise_)
-            print("Silhouette Coefficient: %0.3f"
-                  % silhouette_score(result_df, labels))
-            #Plot
-            # Black removed and is used for noise instead.
-            unique_labels = set(labels)
-            colors_ = [plt.cm.Spectral(each)
-                      for each in np.linspace(0, 1, len(unique_labels))]
-            for k, col in zip(unique_labels, colors_):
-                if k == -1:
-                    # Black used for noise.
-                    col = [0, 0, 0, 1]
+        labels = clustering_points(result_df)
+        result_df['labels'] = labels  # have same order for nodes
+        df_y['labels'] = labels  # have same order for nodes
 
-                class_member_mask = (labels == k)
-
-                core_samples_mask = np.zeros_like(labels, dtype=bool)
-                core_samples_mask[clustering.core_sample_indices_] = True
-                xy = result_df[class_member_mask & core_samples_mask]
-                plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
-                         markeredgecolor='k', markersize=14)
-
-                xy = result_df[class_member_mask & ~core_samples_mask]
-                plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
-                         markeredgecolor='k', markersize=6)
-
-            plt.title('Estimated number of clusters: %d' % n_clusters_)
-            plt.show()
-
-        result_df['labels'] = labels
-        df_y['labels'] = labels
-
-        #Plotting clustering
+        # Plot clustering
         plot_embedding(result_df)
 
-        #Make Df ready for survival analysis
-        df_y.rename(columns= {'OS_time_days':'days_to_death', 'OS_event':'vital_status'}, inplace = True)
+        # Make Df ready for survival analysis
+        df_y.rename(columns={'OS_time_days': 'days_to_death', 'OS_event': 'vital_status'}, inplace=True)
         df_y.index.name = None
-        df_y.to_csv(os.path.join(logpath, 'df_y.csv'), index=True,sep="\t")
-
-
+        df_y.to_csv(os.path.join(path_complete, 'df_y.csv'), index=True, sep="\t")
 
         '''New clusters were identified using a spectral clustering algorithm, 
         which was done by running kmeans on the top number of clusters eigenvectors 
@@ -296,14 +383,17 @@ def plot_embedding(df):
             plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2])
     else:
         plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
-    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.projection, model_name, data.num_features, best_val_auc)
+    title = '{}, Model: {}, Features: {}, AUC: {}, Silhoutte Score:{}'.format(args.projection, model_name,
+                                                                              data.num_features, round(best_val_auc, 3),
+                                                                              round(data.silhoutte_score, 3))
     plt.title(title)
     plt.xlabel('Dimension 1')
     plt.ylabel('Dimension 2')
     # plt.show()
     writer.add_figure('Projection', fig, epoch)
 
-#Train Network
+
+# Train Network
 best_val_auc = 0
 for epoch in range(1, args.epochs + 1):
     loss = train()
@@ -338,7 +428,7 @@ writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
 
-#Call projection and clustering and plotting
+# Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also
 
 writer.close()
