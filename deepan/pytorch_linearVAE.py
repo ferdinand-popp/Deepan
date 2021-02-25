@@ -289,35 +289,37 @@ def clustering_points(result_df):
     # Number of clusters in labels, ignoring noise if present.
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise_ = list(labels).count(-1)
-    data.silhoutte_score = silhouette_score(result_df, labels)
     print(f'DBSCAN: Clusters: {n_clusters_}, Excluded points:{n_noise_}')
 
-    # PLot silhoutte
-    fig_silhoutte = plt.figure(figsize=(8, 8))
-    # Black removed and is used for noise instead.
-    unique_labels = set(labels)
-    colors_ = [plt.cm.Spectral(each)
-               for each in np.linspace(0, 1, len(unique_labels))]
-    for k, col in zip(unique_labels, colors_):
-        if k == -1:
-            # Black used for noise.
-            col = [0, 0, 0, 1]
+    if n_clusters_ > 1:
+        data.silhoutte_score = silhouette_score(result_df, labels)
 
-        class_member_mask = (labels == k)
+        # PLot silhoutte
+        fig_silhoutte = plt.figure(figsize=(8, 8))
+        # Black removed and is used for noise instead.
+        unique_labels = set(labels)
+        colors_ = [plt.cm.Spectral(each)
+                   for each in np.linspace(0, 1, len(unique_labels))]
+        for k, col in zip(unique_labels, colors_):
+            if k == -1:
+                # Black used for noise.
+                col = [0, 0, 0, 1]
 
-        core_samples_mask = np.zeros_like(labels, dtype=bool)
-        core_samples_mask[clustering.core_sample_indices_] = True
-        xy = result_df[class_member_mask & core_samples_mask]
-        plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
-                 markeredgecolor='k', markersize=14)
+            class_member_mask = (labels == k)
 
-        xy = result_df[class_member_mask & ~core_samples_mask]
-        plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
-                 markeredgecolor='k', markersize=6)
+            core_samples_mask = np.zeros_like(labels, dtype=bool)
+            core_samples_mask[clustering.core_sample_indices_] = True
+            xy = result_df[class_member_mask & core_samples_mask]
+            plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
+                     markeredgecolor='k', markersize=14)
 
-    plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
-    # plt.show()
-    writer.add_figure('Clustering', fig_silhoutte, epoch)
+            xy = result_df[class_member_mask & ~core_samples_mask]
+            plt.plot(xy.iloc[:, 0], xy.iloc[:, 1], 'o', markerfacecolor=tuple(col),
+                     markeredgecolor='k', markersize=6)
+
+        plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
+        # plt.show()
+        writer.add_figure('Clustering', fig_silhoutte, epoch)
 
     return labels
 

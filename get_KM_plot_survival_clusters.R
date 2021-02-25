@@ -6,8 +6,8 @@ args = commandArgs(trailingOnly=TRUE)
 
 if (length(args)==0) {
 	print('Arguments needed')
-  	input_path = "/home/fpopp/PycharmProjects/Deepan/runs/2021-02-24/df_y.csv"
-	output_path = "runs/KM_plot.pdf"
+  	input_path = "/home/fpopp/PycharmProjects/Deepan/runs/2021-02-25/15-VarGCN/df_y.csv"
+	output_path = "KM_plot.pdf"
 } else if (length(args)==1) {
 input_path = args[0]
 output_path = args[1]
@@ -21,9 +21,7 @@ library(survival)
 
 samples<-read.table(input_path, header=TRUE, sep="\t", dec = ".")
 #kick blacked out patients by DBSCAN
-print(samples)
 samples<-samples[!(samples$labels=='-1'),]
-print(samples)
 
 # survival time
 SURV<-samples$days_to_death
