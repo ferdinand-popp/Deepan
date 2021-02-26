@@ -31,6 +31,7 @@ def create_survival_plot(data=None, path_csv=None):
 
     print(fitters[0].event_table)  # event_table, predict(days), survival_function_, cumulative_density_
 
+    fig= plt.figure()
     for fit in fitters:
         fit.plot()
     plt.xlabel("Days Passed")
@@ -148,6 +149,8 @@ def create_survival_plot(data=None, path_csv=None):
     print("P-value :",results.p_value)
     '''
 
+    return fig
 
 
-create_survival_plot(path_csv=r'/home/fpopp/PycharmProjects/Deepan/runs/2021-02-25/0-Linear/df_y.csv')
+
+# create_survival_plot(path_csv=r'/home/fpopp/PycharmProjects/Deepan/runs/2021-02-25/0-Linear/df_y.csv')

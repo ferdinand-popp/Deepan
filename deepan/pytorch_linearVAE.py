@@ -22,30 +22,31 @@ from scipy.spatial.distance import cdist
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
 from utils import get_adjacency_matrix, plot_in_out_degree_distributions
+from survival_analysis import create_survival_plot
 
-# seeding
-torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
-
-parser = argparse.ArgumentParser()
-# Data
-parser.add_argument('--dataset', type=str, default='LUAD',
-                    choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-parser.add_argument('--newdataset', action='store_true', default='False')
-parser.add_argument('--cutoff', type=float, default=0.5)
-# Model
-parser.add_argument('--variational', default='False')
-parser.add_argument('--linear', default='True')
-parser.add_argument('--epochs', type=int, default=300)
-parser.add_argument('--lr', type=float, default=0.005)
-parser.add_argument('--decay', type=float, default=0.6)
-parser.add_argument('--outputchannels', type=int, default=208)
-# Embedding
-parser.add_argument('--projection', type=str, default='UMAP',
-                    choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
-# parser.add_argument('--visualize', action='store_true', default='False')
-# Logging/debugging/checkpoint related (helps a lot with experimentation)
-# parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
-args = parser.parse_args()
+def get_arguments():
+    parser = argparse.ArgumentParser()
+    # Data
+    parser.add_argument('--dataset', type=str, default='LUAD',
+                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
+    parser.add_argument('--newdataset', action='store_true', default='False')
+    parser.add_argument('--cutoff', type=float, default=0.5)
+    # Model
+    parser.add_argument('--variational', default='False')
+    parser.add_argument('--linear', default='True')
+    parser.add_argument('--epochs', type=int, default=300)
+    parser.add_argument('--lr', type=float, default=0.005)
+    parser.add_argument('--decay', type=float, default=0.6)
+    parser.add_argument('--outputchannels', type=int, default=208)
+    # Embedding
+    parser.add_argument('--projection', type=str, default='UMAP',
+                        choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
+    # parser.add_argument('--visualize', action='store_true', default='False')
+    # Logging/debugging/checkpoint related (helps a lot with experimentation)
+    # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
+    args = parser.parse_args()
+    return args
+args = get_arguments()
 
 '''Dataset selection and generation'''
 # added line for our LUAD set
@@ -148,6 +149,8 @@ path_complete = os.path.join(logpath, writer_folder)
 writer = SummaryWriter(log_dir='../runs/{}/{}'.format(date.today(), writer_folder))
 
 '''GPU CUDA Connection and send data'''
+# seeding
+torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 x = data.x.to(device)
@@ -350,6 +353,8 @@ def cluster_patients(df_y):
         df_y.index.name = None
         df_y.to_csv(os.path.join(path_complete, 'df_y.csv'), index=True, sep="\t")
 
+        figure_survival = create_survival_plot(df_y)
+        writer.add_figure('Survival', figure_survival)
         '''New clusters were identified using a spectral clustering algorithm, 
         which was done by running kmeans on the top number of clusters eigenvectors 
         of the normalized Laplacian z_2  
@@ -432,6 +437,7 @@ writer.add_scalar('AUC_best', best_val_auc)
 
 # Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also
+
 
 writer.close()
 

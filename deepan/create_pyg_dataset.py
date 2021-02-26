@@ -76,6 +76,7 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
     # set y labels added later in supervised way
     data.y = None
     data.weight = None
+    data.adj_self = df_adj
 
     if df_y is not None:
         data.survival = df_y.reindex(df_adj.index)
