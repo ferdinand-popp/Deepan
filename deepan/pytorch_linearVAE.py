@@ -120,6 +120,21 @@ class VariationalLinearEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
+'''
+class MarginalizedLinearDecoder(torch.nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(MarginalizedLinearDecoder, self).__init__()
+        self.conv = GCNConv(in_channels, out_channels, cached=True)
+    
+    def forward(self, z, edge_index, sigmoid=True):
+        value = (z[edge_index[0]] * z[edge_index[1]]).sum(dim=1)
+        value = torch.sigmoid(value) if sigmoid else value
+        
+        x_recon = self.conv(x, edge_index)
+        
+        return value, x_recon 
+        '''
+
 
 '''Selection of Model'''
 if args.variational == 'False':
@@ -127,13 +142,16 @@ if args.variational == 'False':
         model = GAE(GCNEncoder(num_features, out_channels))
         model_name = 'GCN'
     else:
-        model = GAE(LinearEncoder(num_features, out_channels))
-        model_name = 'Linear'
+        if args.linear == 'MGAE':
+            #model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
+            model_name = 'MGAE'
+        else:
+            model = GAE(LinearEncoder(num_features, out_channels))
+            model_name = 'Linear'
 else:
     if args.linear == 'True':
         model = VGAE(VariationalLinearEncoder(num_features, out_channels))
         model_name = 'VarLinear'
-
     else:
         model = VGAE(VariationalGCNEncoder(num_features, out_channels))
         model_name = 'VarGCN'
@@ -160,9 +178,12 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # add decay?
 
 def train():
     model.train()
-    optimizer.zero_grad()  # no gradient descent
+    optimizer.zero_grad()
     z = model.encode(x, train_pos_edge_index)
-    loss = model.recon_loss(z, train_pos_edge_index)
+    if args.linear == 'MGAE':
+        loss = model.recon_loss(z, data.edge_index, feature_matrix=data.x)
+    else:
+        loss = model.recon_loss(z, train_pos_edge_index)
     if args.variational == 'True':
         loss = loss + (1 / data.num_nodes) * model.kl_loss()
     loss.backward()
