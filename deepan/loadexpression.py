@@ -14,7 +14,7 @@ def get_de():
     ser = ser.sort_values(ascending=False)
 
     # subsetting for top 100 ones & drop var
-    ser_selected = ser.head(100)
+    ser_selected = ser.head(200)
 
     # get indices
     feature_list = list(ser_selected.index.values)
@@ -30,9 +30,13 @@ def preselect_expression(df):
 
 
 def load_expression():
-    url_expression = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_avr_gene_expression_binary.txt'
+    url_expression1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_avr_gene_expression_binary.txt'
+    url_expression2 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUSC/LUSC_avr_gene_expression_binary.txt'
 
-    df_raw = pd.read_csv(url_expression, sep='\t', index_col=0)
+    df_raw1 = pd.read_csv(url_expression1, sep='\t', index_col=0)
+    df_raw2 = pd.read_csv(url_expression2, sep='\t', index_col=0)
+
+    df_raw = df_raw1.append(df_raw2)
 
     df = preselect_expression(df_raw)
     df_T = df.T

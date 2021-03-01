@@ -83,7 +83,7 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
 
     # could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_{data.num_features}_{date.today()}.pt'
+    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/numerical_data_{data.num_features}_{date.today()}.pt'
     torch.save(data, filepath)
 
     return data, filepath
@@ -103,3 +103,11 @@ def generate_masks(data, perc_train, perc_test):
     data.test_mask = list_test
     data.val_mask = list_val
     return data
+
+from create_table import create_binary_table
+df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
+
+df_adj = get_adjacency_matrix(df_features, cutoff=0.5, metric='cosine')
+
+dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
+print(filepath)

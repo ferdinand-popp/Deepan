@@ -12,7 +12,7 @@ def print_edge_pairs(edge_index):
     print(edge_index.numpy().T)
 
 
-def get_adjacency_matrix(df=None, cutoff=0.35, metric='cosine'):
+def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
     # takes binary matrix,calculates distance and cutoffs -> returns boolean distance df
     if df is None:
         df = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')

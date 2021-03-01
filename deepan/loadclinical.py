@@ -4,10 +4,14 @@ import numpy as np
 
 def load_clinical(url_clinical=None):
     if url_clinical is None:
-        url_clinical = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
+        url_clinical1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
+        url_clinical2 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUSC/LUSC_clinical_data_firebrowse_20210125.txt'
 
-    df_raw = pd.read_csv(url_clinical, sep='\t', index_col=0)
 
+    df_raw1 = pd.read_csv(url_clinical1, sep='\t', index_col=0)
+    df_raw2 = pd.read_csv(url_clinical2, sep='\t', index_col=0)
+
+    df_raw = df_raw1.append(df_raw2)
     ''' Inspecting Data
     # check types of cols and adapt them
     df_raw.info(verbose=True)
