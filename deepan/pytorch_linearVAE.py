@@ -353,6 +353,8 @@ def clustering_points(result_df):
         plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
         # plt.show()
         writer.add_figure('Clustering', fig_silhoutte, epoch)
+    else:
+        data.silhoutte_score = 0
 
     else:
         data.silhoutte_score = 0
