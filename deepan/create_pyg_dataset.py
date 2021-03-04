@@ -43,7 +43,7 @@ class TCGA(InMemoryDataset):
 '''
 
 
-def create_dataset(df_adj=None, df_features=None, df_y=None):
+def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
     # returns py torch geometric data object and df with names
     # calculate distance --> get adjacency matrix
 
@@ -64,6 +64,7 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
 
     # convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
+    data.name = datasetname
 
     if df_features is None:
         df_features = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0,
@@ -88,7 +89,9 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
 
     # could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_{data.num_features}_{date.today()}.pt'
+    
+    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/{data.name}/raw/numerical_data_{data.num_features}_{date.today()}.pt'
+
     torch.save(data, filepath)
 
     return data, filepath

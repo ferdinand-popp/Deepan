@@ -5,12 +5,12 @@ from loadexpression import load_expression
 from loadmutations import load_mutations
 
 
-def create_binary_table(clinical, mutation, expression):  # entity = 'LUAD', binary = True
+def create_binary_table(dataset, clinical, mutation, expression):  # entity = 'LUAD & LUSC', binary = True
 
     # loading all three datatypes and comparing patient IDS
-    df_clin, df_y_all = load_clinical()
-    df_mut = load_mutations()
-    df_expr = load_expression()
+    df_clin, df_y_all = load_clinical(dataset)
+    df_mut = load_mutations(dataset)
+    df_expr = load_expression(dataset)
 
     # count ids
     ids_clin = df_clin.index.values.tolist()  # 522
@@ -50,6 +50,6 @@ def create_binary_table(clinical, mutation, expression):  # entity = 'LUAD', bin
     df_y = df_y_all.loc[ids_clin_mut_expr].sort_index()
 
     # save file
-    df_all.to_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index=True, sep='\t')
+    #df_all.to_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index=True, sep='\t')
 
     return df_all, df_y

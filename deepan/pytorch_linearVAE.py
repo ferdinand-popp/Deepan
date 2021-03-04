@@ -24,19 +24,22 @@ from create_table import create_binary_table
 from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 from survival_analysis import create_survival_plot
 
+
 def get_arguments():
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--dataset', type=str, default='LUAD',
-                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-    parser.add_argument('--newdataset', action='store_true', default='False')
+    parser.add_argument('--dataset', type=str, default='NSCLC',
+                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
+    parser.add_argument('--newdataset', action='store_true', default='True')
     parser.add_argument('--cutoff', type=float, default=0.5)
+    parser.add_argument('--filepath_dataset',
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--decay', type=float, default=0.6)
+    # parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
@@ -46,20 +49,25 @@ def get_arguments():
     # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
     args = parser.parse_args()
     return args
+
+
 args = get_arguments()
 
 '''Dataset selection and generation'''
 # added line for our LUAD set
-if args.dataset == 'LUAD':
+if args.dataset in ['LUAD', 'NSCLC']:
     if args.newdataset == 'True':
-        # 1
-        df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
-        # 2
-        df_adj = get_adjacency_matrix(df_features, cutoff=args.cutoff, metric='cosine')
-        # 3
-        dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
-    else:  # use existing data obejct
-        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt'
+        # read basic data and preselect it into dfs
+        df_features, df_y = create_binary_table(dataset=args.dataset, clinical=True, mutation=True, expression=True)
+        # calculate adjacency matrix based on feature distance
+        df_adj = get_adjacency_matrix(df=df_features, cutoff=args.cutoff, metric='cosine')
+        # use generated dfs to save as pytorch data object
+        dataset_unused, filepath = create_dataset(datasetname=args.dataset, df_adj=df_adj, df_features=df_features,
+                                                  df_y=df_y)  # contains .survival redundant
+    else:
+        # !!! use existing data object
+        filepath = args.filepath_dataset
+
     # load data
     data = torch.load(filepath)
     df_y = data.survival
@@ -120,6 +128,7 @@ class VariationalLinearEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
+
 '''
 class MarginalizedLinearDecoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -135,7 +144,6 @@ class MarginalizedLinearDecoder(torch.nn.Module):
         return value, x_recon 
         '''
 
-
 '''Selection of Model'''
 if args.variational == 'False':
     if args.linear == 'False':
@@ -143,7 +151,7 @@ if args.variational == 'False':
         model_name = 'GCN'
     else:
         if args.linear == 'MGAE':
-            #model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
+            # model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
             model_name = 'MGAE'
         else:
             model = GAE(LinearEncoder(num_features, out_channels))
@@ -222,7 +230,7 @@ def projection(z, dimensions=2):
 def plot_silhoutte_comparison(result_df):
     n_clusters = len(set(result_df.labels))
     X = result_df.iloc[:, [0, 1]].to_numpy()
-    y = result_df.loc['labels'].to_numpy()
+    y = result_df.labels.to_numpy()
     # Create a subplot with 1 row and 2 columns
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.set_size_inches(18, 7)
@@ -304,6 +312,7 @@ def plot_silhoutte_comparison(result_df):
                  fontsize=14, fontweight='bold')
 
     plt.show()
+    return fig
 
 
 def clustering_points(result_df):
@@ -347,6 +356,8 @@ def clustering_points(result_df):
     else:
         data.silhoutte_score = 0
 
+    else:
+        data.silhoutte_score = 0
     return labels
 
 
@@ -370,6 +381,10 @@ def cluster_patients(df_y):
 
         # Plot clustering
         plot_embedding(result_df)
+
+        # coeffcients
+        #figure = plot_silhoutte_comparison(result_df)
+        #writer.add_figure('Silhoutte coeffcient', figure, epoch)
 
         # Make Df ready for survival analysis
         df_y.rename(columns={'OS_time_days': 'days_to_death', 'OS_event': 'vital_status'}, inplace=True)
@@ -413,9 +428,10 @@ def plot_embedding(df):
             plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2])
     else:
         plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
+
     title = '{}, Model: {}, Features: {}, AUC: {}, Silhoutte Score:{}'.format(args.projection, model_name,
                                                                               data.num_features, round(best_val_auc, 3),
-                                                                              round(data.silhoutte_score, 3))
+                                                                              data.silhoutte_score)
     plt.title(title)
     plt.xlabel('Dimension 1')
     plt.ylabel('Dimension 2')
@@ -460,7 +476,6 @@ writer.add_scalar('AUC_best', best_val_auc)
 
 # Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also
-
 
 writer.close()
 
