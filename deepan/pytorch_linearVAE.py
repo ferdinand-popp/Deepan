@@ -12,16 +12,14 @@ from sklearn.manifold import TSNE, MDS
 import umap
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import DBSCAN
-from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, GAE, VGAE
 from torch_geometric.utils import train_test_split_edges
-from scipy.spatial.distance import cdist
 
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
-from utils import get_adjacency_matrix, plot_in_out_degree_distributions
+from utils import get_adjacency_matrix, plot_in_out_degree_distributions, draw_graph_inspect
 from survival_analysis import create_survival_plot
 
 
@@ -30,10 +28,10 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
-    parser.add_argument('--newdataset', action='store_true', default='True')
+    parser.add_argument('--newdataset', action='store_true', default='False')
     parser.add_argument('--cutoff', type=float, default=0.5)
     parser.add_argument('--filepath_dataset',
-                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt')
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-04.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
@@ -78,9 +76,11 @@ else:
     datasets = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
     data = datasets[0]
 
+#draw_graph_inspect(data= data)
+
 num_features = data.num_features
 out_channels = args.outputchannels
-# plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -356,8 +356,6 @@ def clustering_points(result_df):
     else:
         data.silhoutte_score = 0
 
-    else:
-        data.silhoutte_score = 0
     return labels
 
 

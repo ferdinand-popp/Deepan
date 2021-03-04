@@ -5,12 +5,25 @@ import numpy as np
 import networkx as nx
 import torch
 import matplotlib.pyplot as plt
+from torch_geometric.utils import to_networkx
 
 
 def print_edge_pairs(edge_index):
     np.set_printoptions(threshold=sys.maxsize)
     print(edge_index.numpy().T)
 
+
+def draw_graph_inspect(graph=None, data=None):
+    if graph is None:
+        graph = to_networkx(data, to_undirected=True)
+        count_edges =  data.edge_index.shape[1]
+    else:
+        count_edges = 0
+    # draw graph
+    #nx.draw_random(graph, arrows=False, with_labels=False, node_size=100, linewidths=0.2, width=0.2)
+    #nx.draw_circular(graph, arrows=False, with_labels=False, node_size=10, linewidths=0.2, width=0.2)
+    nx.draw_spring(graph, arrows=False, with_labels=False, node_size=10, linewidths=0.2, width=0.2, label = f'Edges:{count_edges}')
+    plt.show()
 
 def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
     # takes binary matrix,calculates distance and cutoffs -> returns boolean distance df
@@ -25,7 +38,7 @@ def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
                  metric=metric)  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
 
     # create adjacency matrix
-    #adj = np.zeros((m, m))
+    # adj = np.zeros((m, m))
 
     # cutoff subsetting
     closes = dist < cutoff  # also self links

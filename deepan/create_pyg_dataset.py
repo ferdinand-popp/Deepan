@@ -57,10 +57,7 @@ def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
     # remove self loops
     graph.remove_edges_from(nx.selfloop_edges(graph))
 
-    #draw graph
-    #nx.draw_random(graph, arrows= False, with_labels= False, node_size = 100, linewidths= 0.2, width =0.2 )
-    #nx.draw_circular(graph, arrows= False, with_labels= False, node_size = 10, linewidths= 0.2, width =0.2 )
-    #nx.spring(graph, arrows= False, with_labels= False, node_size = 10, linewidths= 0.2, width =0.2 )
+    #possibly draw graph draw draw_graph_inspect(graph)
 
     # convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
