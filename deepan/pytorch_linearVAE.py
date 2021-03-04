@@ -24,6 +24,7 @@ from create_table import create_binary_table
 from utils import get_adjacency_matrix, plot_in_out_degree_distributions
 from survival_analysis import create_survival_plot
 
+
 def get_arguments():
     parser = argparse.ArgumentParser()
     # Data
@@ -31,13 +32,14 @@ def get_arguments():
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
     parser.add_argument('--newdataset', action='store_true', default='True')
     parser.add_argument('--cutoff', type=float, default=0.5)
-    parser.add_argument('--filepath_dataset', default= r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt')
+    parser.add_argument('--filepath_dataset',
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.005)
-    #parser.add_argument('--decay', type=float, default=0.6)
+    # parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
@@ -48,6 +50,7 @@ def get_arguments():
     args = parser.parse_args()
     return args
 
+
 args = get_arguments()
 
 '''Dataset selection and generation'''
@@ -55,11 +58,12 @@ args = get_arguments()
 if args.dataset in ['LUAD', 'NSCLC']:
     if args.newdataset == 'True':
         # read basic data and preselect it into dfs
-        df_features, df_y = create_binary_table(dataset = args.dataset, clinical=True, mutation=True, expression=True)
+        df_features, df_y = create_binary_table(dataset=args.dataset, clinical=True, mutation=True, expression=True)
         # calculate adjacency matrix based on feature distance
-        df_adj = get_adjacency_matrix(df_features, cutoff=args.cutoff, metric='cosine')
+        df_adj = get_adjacency_matrix(df=df_features, cutoff=args.cutoff, metric='cosine')
         # use generated dfs to save as pytorch data object
-        dataset_unused, filepath = create_dataset(args.dataset, df_adj, df_features, df_y)  # contains .survival redundant
+        dataset_unused, filepath = create_dataset(datasetname=args.dataset, df_adj=df_adj, df_features=df_features,
+                                                  df_y=df_y)  # contains .survival redundant
     else:
         # !!! use existing data object
         filepath = args.filepath_dataset
@@ -124,6 +128,7 @@ class VariationalLinearEncoder(torch.nn.Module):
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
+
 '''
 class MarginalizedLinearDecoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -139,7 +144,6 @@ class MarginalizedLinearDecoder(torch.nn.Module):
         return value, x_recon 
         '''
 
-
 '''Selection of Model'''
 if args.variational == 'False':
     if args.linear == 'False':
@@ -147,7 +151,7 @@ if args.variational == 'False':
         model_name = 'GCN'
     else:
         if args.linear == 'MGAE':
-            #model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
+            # model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
             model_name = 'MGAE'
         else:
             model = GAE(LinearEncoder(num_features, out_channels))
@@ -350,10 +354,9 @@ def clustering_points(result_df):
         # plt.show()
         writer.add_figure('Clustering', fig_silhoutte, epoch)
 
-        #coeffcients
+        # coeffcients
         figure = plot_silhoutte_comparison(result_df)
         writer.add_figure('Silhoutte coeffcient', figure, epoch)
-
 
     return labels
 
@@ -468,7 +471,6 @@ writer.add_scalar('AUC_best', best_val_auc)
 
 # Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also
-
 
 writer.close()
 
