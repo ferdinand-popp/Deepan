@@ -2,16 +2,21 @@ import pandas as pd
 import numpy as np
 
 
-def load_clinical(url_clinical=None):
-    if url_clinical is None:
-        url_clinical1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
-        url_clinical2 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUSC/LUSC_clinical_data_firebrowse_20210125.txt'
+def load_clinical(dataset, url_clinical=None):
+    if dataset == 'LUAD':
+        if url_clinical is None:
+            url_clinical = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
+        df_raw = pd.read_csv(url_clinical, sep='\t', index_col=0)
+    if dataset == 'NSCLC':
+        if url_clinical is None:
+            url_clinical1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
+            url_clinical2 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUSC/LUSC_clinical_data_firebrowse_20210125.txt'
 
+        df_raw1 = pd.read_csv(url_clinical1, sep='\t', index_col=0)
+        df_raw2 = pd.read_csv(url_clinical2, sep='\t', index_col=0)
 
-    df_raw1 = pd.read_csv(url_clinical1, sep='\t', index_col=0)
-    df_raw2 = pd.read_csv(url_clinical2, sep='\t', index_col=0)
+        df_raw = df_raw1.append(df_raw2)  # 1026 patients
 
-    df_raw = df_raw1.append(df_raw2)
     ''' Inspecting Data
     # check types of cols and adapt them
     df_raw.info(verbose=True)
@@ -106,7 +111,7 @@ def load_clinical(url_clinical=None):
     df_binary = pd.get_dummies(df_selected, prefix_sep='_', drop_first=True)
 
     # save to txt file
-    # df_binary.to_csv(r'',index=True, sep='\t')
+    # df_binary.to_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/NSCLC/NSCLC_clinical_binary.txt',index=True, sep='\t')
 
     # control values
     df_y_all = df_raw[['OS_time_days', 'OS_event']]

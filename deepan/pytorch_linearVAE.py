@@ -28,15 +28,16 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     # Data
     parser.add_argument('--dataset', type=str, default='LUAD',
-                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-    parser.add_argument('--newdataset', action='store_true', default='False')
+                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
+    parser.add_argument('--newdataset', action='store_true', default='True')
     parser.add_argument('--cutoff', type=float, default=0.5)
+    parser.add_argument('--filepath_dataset', default= r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.005)
-    parser.add_argument('--decay', type=float, default=0.6)
+    #parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
@@ -46,20 +47,23 @@ def get_arguments():
     # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
     args = parser.parse_args()
     return args
+
 args = get_arguments()
 
 '''Dataset selection and generation'''
 # added line for our LUAD set
-if args.dataset == 'LUAD':
+if args.dataset in ['LUAD', 'NSCLC']:
     if args.newdataset == 'True':
-        # 1
-        df_features, df_y = create_binary_table(clinical=True, mutation=True, expression=True)
-        # 2
+        # read basic data and preselect it into dfs
+        df_features, df_y = create_binary_table(dataset = args.dataset, clinical=True, mutation=True, expression=True)
+        # calculate adjacency matrix based on feature distance
         df_adj = get_adjacency_matrix(df_features, cutoff=args.cutoff, metric='cosine')
-        # 3
-        dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
-    else:  # use existing data obejct
-        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-24.pt'
+        # use generated dfs to save as pytorch data object
+        dataset_unused, filepath = create_dataset(args.dataset, df_adj, df_features, df_y)  # contains .survival redundant
+    else:
+        # !!! use existing data object
+        filepath = args.filepath_dataset
+
     # load data
     data = torch.load(filepath)
     df_y = data.survival
@@ -304,6 +308,7 @@ def plot_silhoutte_comparison(result_df):
                  fontsize=14, fontweight='bold')
 
     plt.show()
+    return fig
 
 
 def clustering_points(result_df):
@@ -344,6 +349,11 @@ def clustering_points(result_df):
         plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
         # plt.show()
         writer.add_figure('Clustering', fig_silhoutte, epoch)
+
+        #coeffcients
+        figure = plot_silhoutte_comparison(result_df)
+        writer.add_figure('Silhoutte coeffcient', figure, epoch)
+
 
     return labels
 
