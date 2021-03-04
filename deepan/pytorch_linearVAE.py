@@ -29,7 +29,7 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='LUAD',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-    parser.add_argument('--newdataset', action='store_true', default='False')
+    parser.add_argument('--newdataset', action='store_true', default='True')
     parser.add_argument('--cutoff', type=float, default=0.5)
     # Model
     parser.add_argument('--variational', default='False')

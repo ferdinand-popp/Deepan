@@ -57,6 +57,11 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
     # remove self loops
     graph.remove_edges_from(nx.selfloop_edges(graph))
 
+    #draw graph
+    #nx.draw_random(graph, arrows= False, with_labels= False, node_size = 100, linewidths= 0.2, width =0.2 )
+    #nx.draw_circular(graph, arrows= False, with_labels= False, node_size = 10, linewidths= 0.2, width =0.2 )
+    #nx.spring(graph, arrows= False, with_labels= False, node_size = 10, linewidths= 0.2, width =0.2 )
+
     # convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
 
@@ -83,7 +88,7 @@ def create_dataset(df_adj=None, df_features=None, df_y=None):
 
     # could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_{data.num_features}_{date.today()}.pt'
+    filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_{data.num_features}_{date.today()}.pt'
     torch.save(data, filepath)
 
     return data, filepath
