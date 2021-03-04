@@ -29,7 +29,7 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='LUAD',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD'])
-    parser.add_argument('--newdataset', action='store_true', default='True')
+    parser.add_argument('--newdataset', action='store_true', default='False')
     parser.add_argument('--cutoff', type=float, default=0.5)
     # Model
     parser.add_argument('--variational', default='False')
@@ -59,7 +59,7 @@ if args.dataset == 'LUAD':
         # 3
         dataset_unused, filepath = create_dataset(df_adj, df_features, df_y)  # contains .survival redundant
     else:  # use existing data obejct
-        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/LUAD/raw/data_208_2021-02-24.pt'
+        filepath = r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/LUAD/raw/data_208_2021-02-24.pt'
     # load data
     data = torch.load(filepath)
     df_y = data.survival
