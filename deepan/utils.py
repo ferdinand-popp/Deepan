@@ -25,7 +25,7 @@ def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
                  metric=metric)  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
 
     # create adjacency matrix
-    adj = np.zeros((m, m))
+    #adj = np.zeros((m, m))
 
     # cutoff subsetting
     closes = dist < cutoff  # also self links

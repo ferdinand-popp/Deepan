@@ -28,7 +28,7 @@ from survival_analysis import create_survival_plot
 def get_arguments():
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--dataset', type=str, default='LUAD',
+    parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
     parser.add_argument('--newdataset', action='store_true', default='True')
     parser.add_argument('--cutoff', type=float, default=0.5)
@@ -230,7 +230,7 @@ def projection(z, dimensions=2):
 def plot_silhoutte_comparison(result_df):
     n_clusters = len(set(result_df.labels))
     X = result_df.iloc[:, [0, 1]].to_numpy()
-    y = result_df.loc['labels'].to_numpy()
+    y = result_df.labels.to_numpy()
     # Create a subplot with 1 row and 2 columns
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.set_size_inches(18, 7)
@@ -354,10 +354,8 @@ def clustering_points(result_df):
         # plt.show()
         writer.add_figure('Clustering', fig_silhoutte, epoch)
 
-        # coeffcients
-        figure = plot_silhoutte_comparison(result_df)
-        writer.add_figure('Silhoutte coeffcient', figure, epoch)
-
+    else:
+        data.silhoutte_score = 0
     return labels
 
 
@@ -381,6 +379,10 @@ def cluster_patients(df_y):
 
         # Plot clustering
         plot_embedding(result_df)
+
+        # coeffcients
+        #figure = plot_silhoutte_comparison(result_df)
+        #writer.add_figure('Silhoutte coeffcient', figure, epoch)
 
         # Make Df ready for survival analysis
         df_y.rename(columns={'OS_time_days': 'days_to_death', 'OS_event': 'vital_status'}, inplace=True)
@@ -424,9 +426,10 @@ def plot_embedding(df):
             plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2])
     else:
         plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
+
     title = '{}, Model: {}, Features: {}, AUC: {}, Silhoutte Score:{}'.format(args.projection, model_name,
                                                                               data.num_features, round(best_val_auc, 3),
-                                                                              round(data.silhoutte_score, 3))
+                                                                              data.silhoutte_score)
     plt.title(title)
     plt.xlabel('Dimension 1')
     plt.ylabel('Dimension 2')

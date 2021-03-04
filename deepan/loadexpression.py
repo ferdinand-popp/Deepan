@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def preselect_expression(df, dataset):
+def preselect_expression(df_all, dataset):
     if dataset == 'LUAD':
         # uses the expression file to get most differentially expressed genes and returns list with gene names
         url = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_gene_expression_tpm.txt'
@@ -31,7 +31,9 @@ def preselect_expression(df, dataset):
     features = list(ser_selected.index.values)
 
     # subset for the wanted patients
-    df_preselected = df.loc[features].sort_index()
+    df_preselected = df_all.loc[features].sort_index()
+    #df_preselected = df.loc[features].sort_index()
+
 
     return df_preselected
 
