@@ -11,7 +11,7 @@ do
               do
                   for outputchannels in 208 100 16 6
                   do
-                      for projection in 'TSNE'
+                      for projection in 'UMAP'
                       do
                               python pytorch_linearVAE.py --linear=${linear} --variational=${variational} --epochs=${epochs} --lr=${lr} --outputchannels=${outputchannels} --cutoff=${cutoff} --projection=${projection}
                       done

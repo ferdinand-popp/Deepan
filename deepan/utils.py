@@ -20,6 +20,7 @@ def draw_graph_inspect(graph=None, data=None):
     else:
         count_edges = 0
     # draw graph
+    print('Plotting graph structure')
     #nx.draw_random(graph, arrows=False, with_labels=False, node_size=100, linewidths=0.2, width=0.2)
     #nx.draw_circular(graph, arrows=False, with_labels=False, node_size=10, linewidths=0.2, width=0.2)
     nx.draw_spring(graph, arrows=False, with_labels=False, node_size=10, linewidths=0.2, width=0.2, label = f'Edges:{count_edges}')
@@ -110,4 +111,4 @@ def plot_in_out_degree_distributions(edge_index, num_of_nodes, dataset_name):
     plt.xticks(np.arange(0, len(hist), 10.0))
 
     plt.grid(True)
-    plt.show()
+    return fig

@@ -29,14 +29,14 @@ def get_arguments():
     parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
     parser.add_argument('--newdataset', action='store_true', default='False')
-    parser.add_argument('--cutoff', type=float, default=0.5)
+    parser.add_argument('--cutoff', type=float, default=0.4)
     parser.add_argument('--filepath_dataset',
-                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-04.pt')
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-05.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--lr', type=float, default=0.005)
+    parser.add_argument('--lr', type=float, default=0.001)
     # parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
     # Embedding
@@ -76,11 +76,13 @@ else:
     datasets = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
     data = datasets[0]
 
-#draw_graph_inspect(data= data)
+# inspect data
+# draw_graph_inspect(data= data)
+degree_figure = plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 
 num_features = data.num_features
+num_edges = data.num_edges
 out_channels = args.outputchannels
-plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -129,20 +131,19 @@ class VariationalLinearEncoder(torch.nn.Module):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
 
-'''
 class MarginalizedLinearDecoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(MarginalizedLinearDecoder, self).__init__()
         self.conv = GCNConv(in_channels, out_channels, cached=True)
-    
+
     def forward(self, z, edge_index, sigmoid=True):
         value = (z[edge_index[0]] * z[edge_index[1]]).sum(dim=1)
         value = torch.sigmoid(value) if sigmoid else value
-        
+
         x_recon = self.conv(x, edge_index)
-        
-        return value, x_recon 
-        '''
+
+        return value, x_recon
+
 
 '''Selection of Model'''
 if args.variational == 'False':
@@ -151,7 +152,8 @@ if args.variational == 'False':
         model_name = 'GCN'
     else:
         if args.linear == 'MGAE':
-            # model = GAE(encoder=LinearEncoder(num_features, out_channels), decoder=MarginalizedLinearDecoder(out_channels, num_features))
+            model = GAE(encoder=LinearEncoder(num_features, out_channels),
+                        decoder=MarginalizedLinearDecoder(out_channels, num_features))
             model_name = 'MGAE'
         else:
             model = GAE(LinearEncoder(num_features, out_channels))
@@ -381,8 +383,8 @@ def cluster_patients(df_y):
         plot_embedding(result_df)
 
         # coeffcients
-        #figure = plot_silhoutte_comparison(result_df)
-        #writer.add_figure('Silhoutte coeffcient', figure, epoch)
+        # figure = plot_silhoutte_comparison(result_df)
+        # writer.add_figure('Silhoutte coeffcient', figure, epoch)
 
         # Make Df ready for survival analysis
         df_y.rename(columns={'OS_time_days': 'days_to_death', 'OS_event': 'vital_status'}, inplace=True)
@@ -471,6 +473,8 @@ for arg in param_dict:
 writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
+writer.add_scalar('Edges', num_edges)
+writer.add_figure('Degree_Figure', degree_figure, epoch)
 
 # Call projection and clustering and plotting
 cluster_patients(df_y)  # writes also

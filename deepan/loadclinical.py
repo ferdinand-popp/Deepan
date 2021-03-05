@@ -116,8 +116,8 @@ def load_clinical(dataset, url_clinical=None):
     # control values
     df_y_all = df_raw[['OS_time_days', 'OS_event']]
     if dataset == 'LUAD':
-        df_y_all['Entity'] = ['LUAD' for _ in range(len(df_raw))]
+        df_y_all.loc[:,'Entity'] = ['LUAD' for _ in range(len(df_raw))]
     if dataset == 'NSCLC':
-        df_y_all['Entity'] = ['LUAD' for _ in range(len(df_raw1))] + ['LUSC' for _ in range(len(df_raw2))]
+        df_y_all.loc[:,'Entity'] = ['LUAD' for _ in range(len(df_raw1))] + ['LUSC' for _ in range(len(df_raw2))]
 
     return df_binary, df_y_all

@@ -1,5 +1,5 @@
 import pandas as pd
-
+from sklearn.preprocessing import MinMaxScaler
 
 def preselect_expression(df_all, dataset):
     if dataset == 'LUAD':
@@ -31,11 +31,19 @@ def preselect_expression(df_all, dataset):
     features = list(ser_selected.index.values)
 
     # subset for the wanted patients
-    df_preselected = df_all.loc[features].sort_index()
-    #df_preselected = df.loc[features].sort_index()
+    numerical = False
+    if numerical:
+        df_preselected = df.loc[features].sort_index()
 
+        #Scale
+        min_max_scaler = MinMaxScaler() #or robust
+        np_scaled = min_max_scaler.fit_transform(df_preselected.T)  # to scale Gene wise and not patient wise
+        df_normalized = pd.DataFrame(np_scaled, columns=list(df_preselected.T.columns), index=list(df_preselected.columns))
+        df_final = df_normalized.T
+    else:
+        df_final = df_all.loc[features].sort_index()
 
-    return df_preselected
+    return df_final
 
 
 def load_expression(dataset):
