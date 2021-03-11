@@ -19,6 +19,19 @@ def preselect_expression(df_all, dataset):
 
     ser = df.var(axis=1)
 
+    #PCA
+    PCA = True
+    if PCA:
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=100)
+        principalComponents = pca.fit_transform(df.T)
+        min_max_scaler = MinMaxScaler()  # or robust
+        np_scaled = min_max_scaler.fit_transform(principalComponents)  # to scale Gene wise and not patient wise
+
+        principalDf = pd.DataFrame(data=np_scaled, index=df.columns)
+
+        df_final = principalDf.T
+        return df_final
     # highest standarddeviation
 
     # sort by var

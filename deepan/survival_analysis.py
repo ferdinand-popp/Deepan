@@ -37,7 +37,7 @@ def create_survival_plot(data=None, path_csv=None):
     plt.xlabel("Days Passed")
     plt.ylabel("Survival Probability")
     plt.title("KMF")
-    plt.show()
+    #plt.show()
 
     '''
     #PLot the graph for cumulative density for both groups:

@@ -45,6 +45,14 @@ def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
     closes = dist < cutoff  # also self links
     # matrix with distance instead boolean: adj[closes] = dist[closes]
 
+    #links
+    #aggre = np.sum(closes, axis=0)
+    #plt.hist(aggre)
+    #plt.show()
+    #loners = aggre -1
+    #print(np.count_nonzero(loners==0))
+    #print(np.max(loners))
+
     # create df so that names are present
     df_adj = pd.DataFrame(closes, index=df.index.values, columns=df.index.values)
     return df_adj

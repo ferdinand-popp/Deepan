@@ -28,15 +28,15 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
-    parser.add_argument('--newdataset', action='store_true', default='False')
-    parser.add_argument('--cutoff', type=float, default=0.4)
+    parser.add_argument('--newdataset', action='store_true', default='True')
+    parser.add_argument('--cutoff', type=float, default=0.45)
     parser.add_argument('--filepath_dataset',
-                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-05.pt')
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-10.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--lr', type=float, default=0.005)
     # parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
     # Embedding
@@ -313,7 +313,7 @@ def plot_silhoutte_comparison(result_df):
                   "with n_clusters = %d" % n_clusters),
                  fontsize=14, fontweight='bold')
 
-    plt.show()
+    #plt.show()
     return fig
 
 

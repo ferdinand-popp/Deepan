@@ -5,11 +5,11 @@ do
   do
       for epochs in 300
       do
-          for lr in 0.005
+          for lr in 0.001 0.005
           do
-              for cutoff in 0.5
+              for cutoff in 0.35
               do
-                  for outputchannels in 208 100 16 6
+                  for outputchannels in 208 100 16
                   do
                       for projection in 'UMAP'
                       do

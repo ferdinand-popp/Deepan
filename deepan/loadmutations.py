@@ -9,7 +9,7 @@ def preselect_mutations(df):
     df = df.sort_values(by='Sum', ascending=False)
 
     # subsetting for top 100 ones & drop sum
-    df_selected = df.head(100)
+    df_selected = df.head(200)
     df_preselected = df_selected.drop(['Sum'], axis=1)
     return df_preselected
 
