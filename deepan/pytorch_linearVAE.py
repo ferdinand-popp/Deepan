@@ -28,23 +28,25 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
-    parser.add_argument('--newdataset', action='store_true', default='True')
-    parser.add_argument('--cutoff', type=float, default=0.45)
+    parser.add_argument('--newdataset', action='store_true', default='False')
+    parser.add_argument('--cutoff', type=float, default=0.5)
     parser.add_argument('--filepath_dataset',
-                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_208_2021-03-10.pt')
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-15.pt')
     # Model
     parser.add_argument('--variational', default='False')
     parser.add_argument('--linear', default='True')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.005)
-    # parser.add_argument('--decay', type=float, default=0.6)
     parser.add_argument('--outputchannels', type=int, default=208)
+    # parser.add_argument('--decay', type=float, default=0.6)
+
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
                         choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
     # parser.add_argument('--visualize', action='store_true', default='False')
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
+
     args = parser.parse_args()
     return args
 
@@ -132,9 +134,6 @@ class VariationalLinearEncoder(torch.nn.Module):
 
 
 class MarginalizedLinearDecoder(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(MarginalizedLinearDecoder, self).__init__()
-        self.conv = GCNConv(in_channels, out_channels, cached=True)
 
     def forward(self, z, edge_index, sigmoid=True):
         value = (z[edge_index[0]] * z[edge_index[1]]).sum(dim=1)
@@ -152,7 +151,7 @@ if args.variational == 'False':
         model_name = 'GCN'
     else:
         if args.linear == 'MGAE':
-            model = GAE(encoder=LinearEncoder(num_features, out_channels),
+            model = MGAE(encoder=LinearEncoder(num_features, out_channels),
                         decoder=MarginalizedLinearDecoder(out_channels, num_features))
             model_name = 'MGAE'
         else:

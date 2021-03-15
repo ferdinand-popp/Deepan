@@ -20,7 +20,7 @@ def preselect_expression(df_all, dataset):
     ser = df.var(axis=1)
 
     #PCA
-    PCA = True
+    PCA = False
     if PCA:
         from sklearn.decomposition import PCA
         pca = PCA(n_components=100)
@@ -44,7 +44,7 @@ def preselect_expression(df_all, dataset):
     features = list(ser_selected.index.values)
 
     # subset for the wanted patients
-    numerical = False
+    numerical = True
     if numerical:
         df_preselected = df.loc[features].sort_index()
 
