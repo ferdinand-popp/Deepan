@@ -14,7 +14,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.cluster import DBSCAN
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.datasets import Planetoid
-from torch_geometric.nn import GCNConv, GAE, VGAE
+from torch_geometric.nn import GCNConv, GAE, VGAE, MGAE
 from torch_geometric.utils import train_test_split_edges
 
 from create_pyg_dataset import create_dataset, generate_masks
@@ -28,13 +28,13 @@ def get_arguments():
     # Data
     parser.add_argument('--dataset', type=str, default='NSCLC',
                         choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
-    parser.add_argument('--newdataset', action='store_true', default='False')
+    parser.add_argument('--newdataset', action='store_true', default='FALSE')
     parser.add_argument('--cutoff', type=float, default=0.5)
     parser.add_argument('--filepath_dataset',
-                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-15.pt')
+                        default=r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-18.pt')
     # Model
     parser.add_argument('--variational', default='False')
-    parser.add_argument('--linear', default='True')
+    parser.add_argument('--linear', default='MGAE')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.005)
     parser.add_argument('--outputchannels', type=int, default=208)
@@ -133,17 +133,6 @@ class VariationalLinearEncoder(torch.nn.Module):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
 
-class MarginalizedLinearDecoder(torch.nn.Module):
-
-    def forward(self, z, edge_index, sigmoid=True):
-        value = (z[edge_index[0]] * z[edge_index[1]]).sum(dim=1)
-        value = torch.sigmoid(value) if sigmoid else value
-
-        x_recon = self.conv(x, edge_index)
-
-        return value, x_recon
-
-
 '''Selection of Model'''
 if args.variational == 'False':
     if args.linear == 'False':
@@ -188,13 +177,15 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # add decay?
 def train():
     model.train()
     optimizer.zero_grad()
-    z = model.encode(x, train_pos_edge_index)
     if args.linear == 'MGAE':
-        loss = model.recon_loss(z, data.edge_index, feature_matrix=data.x)
+        z = model.encode(x, data.edge_index, args.noise)
+        decoded_x = model.decode(z)
+        loss = model.recon_loss(decoded_x, data.edge_index, feature_matrix=data.x)
     else:
+        z = model.encode(x, train_pos_edge_index)
         loss = model.recon_loss(z, train_pos_edge_index)
-    if args.variational == 'True':
-        loss = loss + (1 / data.num_nodes) * model.kl_loss()
+        if args.variational == 'True':
+            loss = loss + (1 / data.num_nodes) * model.kl_loss()
     loss.backward()
     optimizer.step()
     return float(loss)
