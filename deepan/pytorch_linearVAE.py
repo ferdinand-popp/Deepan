@@ -2,20 +2,21 @@ import argparse
 import os
 import os.path as osp
 from datetime import date
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+
 import torch
 import torch_geometric.transforms as T
+from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.datasets import Planetoid
+from torch_geometric.nn import GCNConv, GAE, VGAE  # , MGAE
+from torch_geometric.utils import train_test_split_edges
+
 from sklearn.manifold import TSNE, MDS
 import umap
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import DBSCAN
-from torch.utils.tensorboard import SummaryWriter
-from torch_geometric.datasets import Planetoid
-from torch_geometric.nn import GCNConv, GAE, VGAE, MGAE
-from torch_geometric.utils import train_test_split_edges
 
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
@@ -24,6 +25,9 @@ from survival_analysis import create_survival_plot
 
 
 def get_arguments():
+    """
+    Handle input arguments. Returns argument handler.
+    """
     parser = argparse.ArgumentParser()
     # Data
     parser.add_argument('--dataset', type=str, default='NSCLC',
@@ -43,9 +47,6 @@ def get_arguments():
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
                         choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
-    # parser.add_argument('--visualize', action='store_true', default='False')
-    # Logging/debugging/checkpoint related (helps a lot with experimentation)
-    # parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=False)
 
     args = parser.parse_args()
     return args
@@ -53,38 +54,50 @@ def get_arguments():
 
 args = get_arguments()
 
-'''Dataset selection and generation'''
-# added line for our LUAD set
+'''
+Dataset selection (Medical or Benchmark) and optional generation of this dataset.
+Returns a pytorch data object.
+'''
 if args.dataset in ['LUAD', 'NSCLC']:
     if args.newdataset == 'True':
-        # read basic data and preselect it into dfs
+        # read basic file data and preselect/transform it into dataframes
         df_features, df_y = create_binary_table(dataset=args.dataset, clinical=True, mutation=True, expression=True)
-        # calculate adjacency matrix based on feature distance
+
+        # calculate adjacency matrix based on feature distances of patients
         df_adj = get_adjacency_matrix(df=df_features, cutoff=args.cutoff, metric='cosine')
+
         # use generated dfs to save as pytorch data object
-        dataset_unused, filepath = create_dataset(datasetname=args.dataset, df_adj=df_adj, df_features=df_features,
-                                                  df_y=df_y)  # contains .survival redundant
+        _dataset_unused, filepath = create_dataset(datasetname=args.dataset, df_adj=df_adj, df_features=df_features,
+                                                   df_y=df_y)  # contains .survival redundant
     else:
-        # !!! use existing data object
+        # !!! use existing data torch object
         filepath = args.filepath_dataset
 
-    # load data
+    # load pytorch data object
     data = torch.load(filepath)
+    # save original patient classification and survival data in df
     df_y = data.survival
-    # data = generate_masks(data, 0.85, 0.1) #node masks for dataset train and test values and rest val
+
+
 else:
-    # Planetoid dataset
+    # Planetoid dataset contains benchmarks
     path_data = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
     datasets = Planetoid(path_data, args.dataset, transform=T.NormalizeFeatures())
     data = datasets[0]
 
-# inspect data
-# draw_graph_inspect(data= data)
+'''Inspect data object and set masks'''
+# inspect loaded pytorch data object for edge distribution
+draw_graph_inspect(data=data)
 degree_figure = plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
 
+# set variables
 num_features = data.num_features
 num_edges = data.num_edges
 out_channels = args.outputchannels
+
+# optional node masks for dataset train and test values and rest val
+# data = generate_masks(data, 0.85, 0.1)
+# Generate edge masks (val_ratio=0.05, test_ratio=0.1)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
 data = train_test_split_edges(data)
 
@@ -138,10 +151,11 @@ if args.variational == 'False':
     if args.linear == 'False':
         model = GAE(GCNEncoder(num_features, out_channels))
         model_name = 'GCN'
+
     else:
+        ''' Added own MGAE model'''
         if args.linear == 'MGAE':
-            model = MGAE(encoder=LinearEncoder(num_features, out_channels),
-                        decoder=MarginalizedLinearDecoder(out_channels, num_features))
+            model = MGAE(encoder=LinearEncoder(num_features, out_channels))
             model_name = 'MGAE'
         else:
             model = GAE(LinearEncoder(num_features, out_channels))
@@ -155,7 +169,8 @@ else:
         model_name = 'VarGCN'
 
 '''Logging'''
-# Writer will output to ./runs/ directory by default
+# Writer will output to ./runs/ directory for each day by default
+# Example ./runs/2021-03-31/1-VGAE
 logpath = os.path.join(os.path.split(os.getcwd())[0], f'runs/{date.today()}')
 if not os.path.exists(logpath):
     os.makedirs(logpath)
@@ -166,12 +181,13 @@ writer = SummaryWriter(log_dir='../runs/{}/{}'.format(date.today(), writer_folde
 
 '''GPU CUDA Connection and send data'''
 # seeding
-torch.manual_seed(0)  # np.random.seed(0) # torch.set_deterministic(True)
+torch.manual_seed(0)  # torch.set_deterministic(True)
+np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 x = data.x.to(device)
 train_pos_edge_index = data.train_pos_edge_index.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # add decay?
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # optional args.decay
 
 
 def train():
@@ -194,11 +210,16 @@ def train():
 def test(pos_edge_index, neg_edge_index):
     model.eval()
     with torch.no_grad():
+        # latent representation
         z = model.encode(x, train_pos_edge_index)
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
 def projection(z, dimensions=2):
+    """
+    Dimensionality reduction via projection into 2 dimensions.
+    Takes in a latent representation and outputs a dataframe with cols as dimensions.
+    """
     print('Projection')
     if args.projection == 'TSNE':
         projection = TSNE(n_components=dimensions, random_state=123)
@@ -209,12 +230,10 @@ def projection(z, dimensions=2):
     elif args.projection == 'LEIDEN':
         # see https://github.com/vtraag/leidenalg IGraph
         pass
-    # for graphs?
     else:
         print('No projection')
         pass
     result = projection.fit_transform(z)
-    # TODO add all dimens into frame
     result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
     return result_df
 
@@ -303,7 +322,7 @@ def plot_silhoutte_comparison(result_df):
                   "with n_clusters = %d" % n_clusters),
                  fontsize=14, fontweight='bold')
 
-    #plt.show()
+    # plt.show()
     return fig
 
 
@@ -352,19 +371,19 @@ def clustering_points(result_df):
 
 
 def cluster_patients(df_y):
+    """
+    Analysis of trained network: get latent representation of trained network, reduce dimensionalities,
+    cluster into patient groups and plot results
+    """
     with torch.no_grad():
-        # get representation (nodes, outputchannels(feature dimensions))
+        # get latent representation {nodes, outputchannels(feature dimensions)}
         z = model.encode(x, train_pos_edge_index)
         z_0 = z.cpu().numpy()  # copies it to CPU
 
-        # transform presentation like in DEEPAN
-        z_1 = np.dot(z_0, z_0.T)  # inner dot product (nodes, nodes) returned
-        z_2 = (np.absolute(z_1) + np.absolute(z_1.T)) / 2
-        # symmetric and nonnegative representation (nodes, nodes) returned
-
-        # Embedding projection
+        # Dimensionality reduction via projection
         result_df = projection(z_0)  # UMAP, TSNE, LEIDEN, MDS
 
+        # Clustering of the projection into patient groups
         labels = clustering_points(result_df)
         result_df['labels'] = labels  # have same order for nodes
         df_y['labels'] = labels  # have same order for nodes
@@ -404,13 +423,14 @@ def cluster_patients(df_y):
          '''
 
 
-colors = [
-    '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700', '#092345', '#ffc456', '#69b1b3',
-    '#76c474', '#ebdf6a'
-]
-
-
 def plot_embedding(df):
+    """
+    Plots dataframe after dimensionality reduction.
+    """
+    colors = [
+        '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700', '#092345', '#ffc456', '#69b1b3',
+        '#76c474', '#ebdf6a'
+    ]
     fig = plt.figure(figsize=(8, 8))
     if len(df.columns) > 2:  # contains labels?
         for i in df.labels.unique():
@@ -429,19 +449,6 @@ def plot_embedding(df):
     writer.add_figure('Projection', fig, epoch)
 
 
-# Train Network
-best_val_auc = 0
-for epoch in range(1, args.epochs + 1):
-    loss = train()
-    auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
-    if auc > best_val_auc:
-        best_val_auc = auc
-    writer.add_scalar('auc', auc, epoch)
-    writer.add_scalar('loss', loss, epoch)
-
-    print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
-
-
 def plot_auc(aucs):
     # plt.plot(losses)
     plt.plot(aucs)
@@ -454,7 +461,20 @@ def plot_auc(aucs):
     print('Done')
 
 
-'''Logging Parameters'''
+''' Execute model training and testing'''
+best_val_auc = 0
+for epoch in range(1, args.epochs + 1):
+    loss = train()
+    # testing masked egdes against the reconstructed graph from the projection
+    auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
+    if auc > best_val_auc:
+        best_val_auc = auc
+    writer.add_scalar('auc', auc, epoch)
+    writer.add_scalar('loss', loss, epoch)
+
+    print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
+
+'''Logging running parameters'''
 param_dict = vars(args)
 param_dict['Model'] = model_name
 params = ''
@@ -466,11 +486,11 @@ writer.add_scalar('AUC_best', best_val_auc)
 writer.add_scalar('Edges', num_edges)
 writer.add_figure('Degree_Figure', degree_figure, epoch)
 
-# Call projection and clustering and plotting
+'''Network analysis: Call projection and clustering and plotting'''
 cluster_patients(df_y)  # writes also
 
-writer.close()
-
-# save model
+''' optional save trained model '''
 # modelpath = os.path.join(os.getwd(), 'models')
 # torch.save(model.state_dict(), modelpath)
+
+writer.close()
