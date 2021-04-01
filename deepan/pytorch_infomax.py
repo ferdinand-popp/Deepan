@@ -78,8 +78,9 @@ for epoch in range(1, 301):
 with torch.no_grad():
     z, _, _ = model(data.x, data.edge_index)
     print(z)
-    projection = umap.UMAP(n_components=z, random_state=42)
-    result = projection.fit_transform(z)
+    z_0 = z.cpu().numpy()
+    projection = umap.UMAP(n_components=z_0, random_state=42)
+    result = projection.fit_transform(z_0)
     result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
     plt.scatter(result_df.iloc[:, 0], result_df.iloc[:, 1], s=20)
     plt.show()
