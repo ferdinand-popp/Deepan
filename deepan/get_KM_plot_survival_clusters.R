@@ -6,7 +6,7 @@ args = commandArgs(trailingOnly=TRUE)
 
 if (length(args)==0) {
 	print('Arguments needed')
-  	input_path = "/home/fpopp/PycharmProjects/Deepan/runs/2021-02-25/15-VarGCN/df_y.csv"
+  	input_path = "/runs/2021-02-25/15-VarGCN/df_y.csv"
 	output_path = "KM_plot.pdf"
 } else if (length(args)==1) {
 input_path = args[0]
@@ -19,7 +19,7 @@ library(survival)
 # requires, sample-ID, survival time, survival events (0=alive, 1=dead) and group of sample
 # an example file --> Overall_Surv_CAF_Group.txt
 
-samples<-read.table(input_path, header=TRUE, sep="\t", dec = ".")
+samples<-read.table(input_path, header=TRUE, sep="\t", dec = "..")
 #kick blacked out patients by DBSCAN
 samples<-samples[!(samples$labels=='-1'),]
 
