@@ -1,7 +1,5 @@
-from torch_geometric.utils import from_networkx
 from math import floor
 
-import torch
 from torch_geometric.utils import from_networkx
 from datetime import date
 
@@ -9,28 +7,25 @@ from utils import *
 
 
 def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
-    # returns py torch geometric data object and df with names
-    # calculate distance --> get adjacency matrix
+    """
+    Creates a pytorch data object from the inputs features, adjacency and survival data.
+    Returns: data object, filepath (where it was saved)
+    """
 
     print('Creating Dataset')
-    if df_adj is None:
-        df_adj = get_adjacency_matrix()
 
     # convert matrix to G graph object
     graph = to_graph(df_adj)
 
-    # remove self loops
+    # remove self loops (identity)
     graph.remove_edges_from(nx.selfloop_edges(graph))
 
-    # possibly draw graph draw draw_graph_inspect(graph)
+    # possibly draw graph draw
+    draw_graph_inspect(graph)
 
     # convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
     data.name = datasetname
-
-    if df_features is None:
-        df_features = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0,
-                                  sep='\t')
 
     # sort features fitting to adj matrix
     df_features = df_features.reindex(df_adj.index)
@@ -49,11 +44,7 @@ def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
     if df_y is not None:
         data.survival = df_y.reindex(df_adj.index)
 
-    # could create DATASET object to save format
-    # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-
     filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/{data.name}/raw/numerical_data_{data.num_features}_{date.today()}.pt'
-
     torch.save(data, filepath)
 
     return data, filepath

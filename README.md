@@ -9,8 +9,8 @@ Generated patient nodes have an edge connecting them if their distance in the fe
 ### 2. Train graph autoencoders 
 GAE are graph convolutional nets that integrate feature and adjacency information. The resulting latent represenation is decoded to reconstruct the adjacency 
 information and the loss is the mean squared error between the original matrix and the reconstructed one.
-Various architectures from the pytorch geometric project are included and they all result in a latent representation after training. Mainly using *simple linear AE*, *GAE*, *VGAE*, *variational simple linear AE*
-### 3. Clustering analysis for the latent represenation of the patient 
+Various architectures from the pytorch geometric project are included and they all result in a latent representation after training. Mainly using **simple linear AE**, **GAE**, **VGAE**, **variational simple linear AE**
+### 3. Clustering analysis for the latent represenation of the patients 
 The latent represenation can the be projected via an dimensionality reduction (UMAP) and clustered (DBSCAN)
 
 ## Getting started
@@ -22,6 +22,13 @@ follow installation steps for pytorch geometric under (min version 1.6): [PyG Do
 
 Remaining required packages under [Dependencies](/Dependencies)
 
+The output of the runs is visualized in Tensorboard (HTML based Dashboard) and executable for example:
+
+Terminal command:
+
+```python
+tensorboard --logdir=./Deepan/runs/2021-03-18
+```
 
 ## Additional
 This repository is licensed under MIT license

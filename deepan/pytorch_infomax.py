@@ -1,26 +1,27 @@
 import os.path as osp
+import pandas as pd
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, DeepGraphInfomax
+import umap
+
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
 from utils import get_adjacency_matrix
 
-dataset = 'Cora'
+dataset = 'NSCLC'
+filepath_data = r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-18.pt'
 
 if dataset == 'Cora':
     path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
     dataset = Planetoid(path, dataset)
     data_i = dataset[0]
 else:
-    # 1
-    df_features = create_binary_table(clinical=True, mutation=True, expression=True)
-    # 2
-    df_adj = get_adjacency_matrix(df_features, cutoff=0.35, metric='cosine')
-    # 3
-    data, names = create_dataset(df_adj, df_features)
+    # load pytorch data object
+    data = torch.load(filepath_data)
 
     out_channels = data.num_nodes
     num_features = data.num_features
@@ -73,3 +74,12 @@ for epoch in range(1, 301):
     loss = train()
     print('Epoch: {:03d}, Loss: {:.4f}'.format(epoch, loss))
 
+''' Analysis of network'''
+with torch.no_grad():
+    z, _, _ = model(data.x, data.edge_index)
+    print(z)
+    projection = umap.UMAP(n_components=z, random_state=42)
+    result = projection.fit_transform(z)
+    result_df = pd.DataFrame({'firstdim': result[:, 0], 'seconddim': result[:, 1]})
+    plt.scatter(result_df.iloc[:, 0], result_df.iloc[:, 1], s=20)
+    plt.show()

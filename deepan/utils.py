@@ -9,17 +9,24 @@ from torch_geometric.utils import to_networkx
 
 
 def print_edge_pairs(edge_index):
+    """
+    Prints edge pairs from tensor object
+    """
     np.set_printoptions(threshold=sys.maxsize)
     print(edge_index.numpy().T)
 
 
 def draw_graph_inspect(graph=None, data=None):
+    """
+    Takes graph or pytorch data object and plots it inline based on NetworkX funtions
+    """
     if graph is None:
         graph = to_networkx(data, to_undirected=True)
         count_edges =  data.edge_index.shape[1]
     else:
         count_edges = 0
-    # draw graph
+
+    # draw graph in spring, random or circular formation
     print('Plotting graph structure')
     #nx.draw_random(graph, arrows=False, with_labels=False, node_size=100, linewidths=0.2, width=0.2)
     #nx.draw_circular(graph, arrows=False, with_labels=False, node_size=10, linewidths=0.2, width=0.2)
@@ -27,31 +34,21 @@ def draw_graph_inspect(graph=None, data=None):
     plt.show()
 
 def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
-    # takes binary matrix,calculates distance and cutoffs -> returns boolean distance df
-    if df is None:
-        df = pd.read_csv(r'/media/administrator/INTERNAL3_6TB/TCGA_data/all_binary_selected.txt', index_col=0, sep='\t')
+    """
+    Patient nodes have an edge connecting them if their distance in the feature space is below a set threshold.
+    takes binary matrix,calculates distance and cutoffs
+    Returns: boolean patient-patient adjacency df
+    Metric docs: https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
+    """
 
     data = df.to_numpy()
-    n, m = data.shape
 
     # generate distance matrix on cosine similarity / can also do euclid
     dist = cdist(data, data,
-                 metric=metric)  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
-
-    # create adjacency matrix
-    # adj = np.zeros((m, m))
+                 metric=metric)
 
     # cutoff subsetting
     closes = dist < cutoff  # also self links
-    # matrix with distance instead boolean: adj[closes] = dist[closes]
-
-    #links
-    #aggre = np.sum(closes, axis=0)
-    #plt.hist(aggre)
-    #plt.show()
-    #loners = aggre -1
-    #print(np.count_nonzero(loners==0))
-    #print(np.max(loners))
 
     # create df so that names are present
     df_adj = pd.DataFrame(closes, index=df.index.values, columns=df.index.values)
@@ -61,17 +58,13 @@ def get_adjacency_matrix(df=None, cutoff=0.5, metric='cosine'):
 def to_graph(closes):
     # takes numpy array
     G = nx.from_numpy_matrix(closes.to_numpy())
-    # nx.draw(G, edge_color=[i[2]['weight'] for i in G.edges(data=True)])
-    # add features?
+    # nx.draw(G)
     return G
 
 
 def plot_in_out_degree_distributions(edge_index, num_of_nodes, dataset_name):
     """
-        Note: It would be easy to do various kinds of powerful network analysis using igraph/networkx, etc.
-        I chose to explicitly calculate only the node degree statistics here, but you can go much further if needed and
-        calculate the graph diameter, number of triangles and many other concepts from the network analysis field.
-
+    Cloned from https://github.com/gordicaleksa/pytorch-GAT
     """
     if isinstance(edge_index, torch.Tensor):
         edge_index = edge_index.cpu().numpy()
@@ -97,26 +90,29 @@ def plot_in_out_degree_distributions(edge_index, num_of_nodes, dataset_name):
         hist[out_degree] += 1
 
     fig = plt.figure(figsize=(12, 8), dpi=100)  # otherwise plots are really small in Jupyter Notebook
-    fig.subplots_adjust(hspace=0.6)
-    '''
-    plt.subplot(311)
-    plt.plot(in_degrees, color='red')
-    plt.xlabel('node id');
-    plt.ylabel('in-degree count');
-    plt.title('Input degree for different node ids')
-
-    plt.subplot(312)
-    plt.plot(out_degrees, color='green')
-    plt.xlabel('node id');
-    plt.ylabel('out-degree count');
-    plt.title('Out degree for different node ids')
-    '''
-    plt.subplot(313)
     plt.plot(hist, color='blue')
     plt.xlabel('node degree')
     plt.ylabel('# nodes for a given out-degree')
     plt.title(f'Node out-degree distribution for {dataset_name} dataset')
     plt.xticks(np.arange(0, len(hist), 10.0))
 
-    plt.grid(True)
+    return fig
+
+def plot_degree_hist(adj):
+    """
+    Takes an adjacency dataframe and plot a degree histogram
+    Returns figure
+    """
+    aggre = np.sum(adj.values, axis=0)
+
+    loners = aggre -1
+    singles = np.count_nonzero(loners==0)
+    maxims = np.max(loners)
+
+    fig = plt.figure()
+    plt.hist(aggre)
+    plt.xlabel('node degree in bins')
+    plt.ylabel('# nodes for a given out-degree')
+    plt.title(f'Degree histogram with {singles}')
+
     return fig

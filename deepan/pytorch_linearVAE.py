@@ -20,7 +20,7 @@ from sklearn.cluster import DBSCAN
 
 from create_pyg_dataset import create_dataset, generate_masks
 from create_table import create_binary_table
-from utils import get_adjacency_matrix, plot_in_out_degree_distributions, draw_graph_inspect
+from utils import get_adjacency_matrix, plot_in_out_degree_distributions, draw_graph_inspect, plot_degree_hist
 from survival_analysis import create_survival_plot
 
 
@@ -89,6 +89,7 @@ else:
 # inspect loaded pytorch data object for edge distribution
 draw_graph_inspect(data=data)
 degree_figure = plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+degree_hist_figure = plot_degree_hist(data.adj_self)
 
 # set variables
 num_features = data.num_features
@@ -217,7 +218,7 @@ def test(pos_edge_index, neg_edge_index):
 
 def corrupt(noise, clean_data):
     """
-    Input noise.
+    Input noise for the MGAE
     """
     data = np.copy(clean_data)
     n_masked = int(data.shape[1] * noise)
@@ -471,6 +472,7 @@ writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
 writer.add_scalar('Edges', num_edges)
 writer.add_figure('Degree_Figure', degree_figure, epoch)
+writer.add_figure('Degree_Histogram', degree_hist_figure, epoch)
 
 '''Network analysis: Call projection and clustering and plotting'''
 cluster_patients(df_y)  # writes also
