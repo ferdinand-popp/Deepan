@@ -15,7 +15,7 @@ from torch_geometric.utils import train_test_split_edges
 
 from sklearn.manifold import TSNE, MDS
 import umap
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.cluster import DBSCAN
 
 from create_pyg_dataset import create_dataset, generate_masks
@@ -215,6 +215,20 @@ def test(pos_edge_index, neg_edge_index):
     return model.test(z, pos_edge_index, neg_edge_index)
 
 
+def corrupt(noise, clean_data):
+    """
+    Input noise.
+    """
+    data = np.copy(clean_data)
+    n_masked = int(data.shape[1] * noise)
+
+    for i in xrange(data.shape[0]):
+        mask = np.random.randint(0, data.shape[1], n_masked)
+        data[:, mask] = 0
+
+    return data
+
+
 def projection(z, dimensions=2):
     """
     Dimensionality reduction via projection into 2 dimensions.
@@ -238,7 +252,12 @@ def projection(z, dimensions=2):
     return result_df
 
 
-def plot_silhoutte_comparison(result_df):
+def plot_silhouette_comparison(result_df):
+    """
+    Calculated average silhouette score for each cluster group.
+    Plots scores --> writer add figure
+    Based on sklearn example.
+    """
     n_clusters = len(set(result_df.labels))
     X = result_df.iloc[:, [0, 1]].to_numpy()
     y = result_df.labels.to_numpy()
@@ -255,8 +274,8 @@ def plot_silhoutte_comparison(result_df):
     ax1.set_ylim([0, len(X) + (n_clusters + 1) * 10])
 
     # The silhouette_score gives the average value for all the samples.
-    # This gives a perspective into the density and separation of the formed
-    # clusters
+    #     # This gives a perspective into the density and separation of the formed
+    #     # clusters
     silhouette_avg = silhouette_score(X, y)
     print("For n_clusters =", n_clusters,
           "The average silhouette_score is :", silhouette_avg)
@@ -297,36 +316,20 @@ def plot_silhoutte_comparison(result_df):
     ax1.set_yticks([])  # Clear the yaxis labels / ticks
     ax1.set_xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
 
-    '''
-    # 2nd Plot showing the actual clusters formed
-    colors = cm.nipy_spectral(cluster_labels.astype(float) / n_clusters)
-    ax2.scatter(X[:, 0], X[:, 1], marker='.', s=30, lw=0, alpha=0.7,
-                c=colors, edgecolor='k')
-
-    # Labeling the clusters
-    centers = clusterer.cluster_centers_
-    # Draw white circles at cluster centers
-    ax2.scatter(centers[:, 0], centers[:, 1], marker='o',
-                c="white", alpha=1, s=200, edgecolor='k')
-
-    for i, c in enumerate(centers):
-        ax2.scatter(c[0], c[1], marker='$%d$' % i, alpha=1,
-                    s=50, edgecolor='k')
-
-    ax2.set_title("The visualization of the clustered data.")
-    ax2.set_xlabel("Feature space for the 1st feature")
-    ax2.set_ylabel("Feature space for the 2nd feature")
-    '''
-
     plt.suptitle(("Silhouette analysis for KMeans clustering on sample data "
                   "with n_clusters = %d" % n_clusters),
                  fontsize=14, fontweight='bold')
 
-    # plt.show()
+    writer.add_figure('Silhoutte_avg_groups', fig)
     return fig
 
 
 def clustering_points(result_df):
+    """
+    DBSCAN for low dimensional dataframe of latent representation.
+    If settings for DBSCAN return more than 1 label for the data --> writer add color plot.
+    Returns group label array.
+    """
     # Clustering input result df
     clustering = DBSCAN(min_samples=2).fit(result_df.to_numpy())
     labels = clustering.labels_
@@ -335,12 +338,14 @@ def clustering_points(result_df):
     n_noise_ = list(labels).count(-1)
     print(f'DBSCAN: Clusters: {n_clusters_}, Excluded points:{n_noise_}')
 
+    # successfull clustering of groups
     if n_clusters_ > 1:
-        data.silhoutte_score = silhouette_score(result_df, labels)
+        # calculate mean Silhouette score per group
+        data.silhouette_score = silhouette_score(result_df, labels)
 
-        # PLot silhoutte
-        fig_silhoutte = plt.figure(figsize=(8, 8))
-        # Black removed and is used for noise instead.
+        # Plot silhouette figure
+        fig_silhouette = plt.figure(figsize=(8, 8))
+        # Black (ungrouped samples) removed and is used for noise instead.
         unique_labels = set(labels)
         colors_ = [plt.cm.Spectral(each)
                    for each in np.linspace(0, 1, len(unique_labels))]
@@ -362,12 +367,50 @@ def clustering_points(result_df):
                      markeredgecolor='k', markersize=6)
 
         plt.title('DBSCAN number of clusters: %d' % len(unique_labels))
-        # plt.show()
-        writer.add_figure('Clustering', fig_silhoutte, epoch)
+        writer.add_figure('Clustering', fig_silhouette, epoch)
     else:
-        data.silhoutte_score = 0
+        data.silhouette_score = 0
 
     return labels
+
+
+def plot_embedding(df):
+    """
+    Plots dataframe after dimensionality reduction. --> writer add plot
+    """
+    colors = [
+        '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700', '#092345', '#ffc456', '#69b1b3',
+        '#76c474', '#ebdf6a'
+    ]
+    fig = plt.figure(figsize=(8, 8))
+    if len(df.columns) > 2:  # contains labels?
+        for i in df.labels.unique():
+            df_i = df.loc[df['labels'] == i]
+            plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2], label=f'Grouplabel: {i}')
+    else:
+        plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
+
+    title = '{}, Model: {}, Features: {}, AUC: {}, Silhouette Score:{}'.format(args.projection, model_name,
+                                                                               data.num_features,
+                                                                               round(best_val_auc, 3),
+                                                                               data.silhouette_score)
+    plt.title(title)
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    plt.legend()
+    writer.add_figure('Projection', fig, epoch)
+
+
+def plot_auc(aucs):
+    # plt.plot(losses)
+    plt.plot(aucs)
+    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.dataset, model_name, data.num_features, max(aucs))
+    plt.title(title)
+    plt.xlabel('Epochs')
+    plt.ylabel('AUC')
+    # plt.show()
+
+    print('Done')
 
 
 def cluster_patients(df_y):
@@ -391,74 +434,17 @@ def cluster_patients(df_y):
         # Plot clustering
         plot_embedding(result_df)
 
-        # coeffcients
-        # figure = plot_silhoutte_comparison(result_df)
-        # writer.add_figure('Silhoutte coeffcient', figure, epoch)
+        # Plot average groups silhouette score
+        plot_silhouette_comparison(result_df)
 
-        # Make Df ready for survival analysis
+        # Make df ready for survival analysis
         df_y.rename(columns={'OS_time_days': 'days_to_death', 'OS_event': 'vital_status'}, inplace=True)
         df_y.index.name = None
         df_y.to_csv(os.path.join(path_complete, 'df_y.csv'), index=True, sep="\t")
 
+        # Survival analysis via this method or extensive analysis with get_KM_plot_survival_clusters.R
         figure_survival = create_survival_plot(df_y)
         writer.add_figure('Survival', figure_survival)
-        '''New clusters were identified using a spectral clustering algorithm, 
-        which was done by running kmeans on the top number of clusters eigenvectors 
-        of the normalized Laplacian z_2  
-        #eigenvalues, eigenvectors = np.linalg.eig(z_2)
-        
-                for k in range(1, 11):
-            kmeans = KMeans(n_clusters=k, random_state=0)
-            kmeans.fit(kmeans_input)
-            # Docu Elbow Inertia
-            writer.add_scalar('SSE', kmeans.inertia_, k)
-
-            # Docu Elbow Distortion
-            distortion = sum(np.min(cdist(kmeans_input, kmeans.cluster_centers_, 'euclidean'), axis=1)) / \
-                         kmeans_input.shape[0]
-            writer.add_scalar('Distortion', distortion, k)
-
-        # embedding with categories as colors and tSNE
-        # writer.add_embedding(kmeans_input, metadata=categories) # not executable on firefox due to WebGL acceleration
-         '''
-
-
-def plot_embedding(df):
-    """
-    Plots dataframe after dimensionality reduction.
-    """
-    colors = [
-        '#ffc0cb', '#bada55', '#008080', '#420420', '#7fe5f0', '#065535', '#ffd700', '#092345', '#ffc456', '#69b1b3',
-        '#76c474', '#ebdf6a'
-    ]
-    fig = plt.figure(figsize=(8, 8))
-    if len(df.columns) > 2:  # contains labels?
-        for i in df.labels.unique():
-            df_i = df.loc[df['labels'] == i]
-            plt.scatter(df_i.iloc[:, 0], df_i.iloc[:, 1], s=20, color=colors[i + 2])
-    else:
-        plt.scatter(df.iloc[:, 0], df.iloc[:, 1], s=20)
-
-    title = '{}, Model: {}, Features: {}, AUC: {}, Silhoutte Score:{}'.format(args.projection, model_name,
-                                                                              data.num_features, round(best_val_auc, 3),
-                                                                              data.silhoutte_score)
-    plt.title(title)
-    plt.xlabel('Dimension 1')
-    plt.ylabel('Dimension 2')
-    # plt.show()
-    writer.add_figure('Projection', fig, epoch)
-
-
-def plot_auc(aucs):
-    # plt.plot(losses)
-    plt.plot(aucs)
-    title = '{}, Model: {}, Features: {}, AUC: {}'.format(args.dataset, model_name, data.num_features, max(aucs))
-    plt.title(title)
-    plt.xlabel('Epochs')
-    plt.ylabel('AUC')
-    # plt.show()
-
-    print('Done')
 
 
 ''' Execute model training and testing'''
