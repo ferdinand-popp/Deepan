@@ -72,6 +72,4 @@ def test():
 for epoch in range(1, 301):
     loss = train()
     print('Epoch: {:03d}, Loss: {:.4f}'.format(epoch, loss))
-    #acc = test()
-    #print('Accuracy: {:.4f}'.format(acc))
 

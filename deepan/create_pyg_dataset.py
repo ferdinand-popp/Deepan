@@ -7,41 +7,6 @@ from datetime import date
 
 from utils import *
 
-'''
-class TCGA(InMemoryDataset):
-    def __init__(self, data_input):
-        super(TCGA, self).__init__(data_input)
-        self.data, self.slices = torch.load(data_input)
-        self.data_input = data_input
-
-    @property
-    def raw_file_names(self):
-        return ['data.pt']
-
-    @property
-    def processed_file_names(self):
-        return ['data.pt']
-
-    @property
-    def raw_dir(self):
-        return osp.join(r'/media/administrator/INTERNAL3_6TB/TCGA_data', 'LUAD', 'raw')
-
-    @property
-    def processed_dir(self):
-        return osp.join(r'/media/administrator/INTERNAL3_6TB/TCGA_data', 'LUAD', 'processed')
-
-    def download(self):
-        # Download to `self.raw_dir`.
-        pass
-
-    def process(self):
-        data, slices = self.collate(self.data_input)
-        torch.save((data, slices), osp.join(r'/media/administrator/INTERNAL3_6TB/TCGA_data', 'LUAD', 'raw'))
-
-    def __repr__(self):
-        return '{}()'.format(self.name)
-'''
-
 
 def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
     # returns py torch geometric data object and df with names
@@ -57,7 +22,7 @@ def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
     # remove self loops
     graph.remove_edges_from(nx.selfloop_edges(graph))
 
-    #possibly draw graph draw draw_graph_inspect(graph)
+    # possibly draw graph draw draw_graph_inspect(graph)
 
     # convert graph to Pytorch Data object ! missing feautures
     data = from_networkx(graph)
@@ -86,7 +51,7 @@ def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
 
     # could create DATASET object to save format
     # see: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html
-    
+
     filepath = f'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/{data.name}/raw/numerical_data_{data.num_features}_{date.today()}.pt'
 
     torch.save(data, filepath)
@@ -95,7 +60,7 @@ def create_dataset(datasetname, df_adj=None, df_features=None, df_y=None):
 
 
 def generate_masks(data, perc_train, perc_test):
-    # 70%train, 20% test, remaining 10% val -> Model in Model out
+    # Node masks: 70%train, 20% test, remaining 10% val -> Model in Model out
     print('Generating masks for Nodes')
 
     nodes = data.num_nodes
