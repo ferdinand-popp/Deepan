@@ -5,7 +5,7 @@ Cluster patient based on their multiomics data utilizing graph autoencoders
 Project based on pytorch-geometric. It uses clinical EHR, gene expression and somatic mutation data from the TCGA Study [TCGA Study](https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga)
 ### 1. Generate a patient similarity graph. 
 Transform omics data into binary or numerical features and preselect them. 
-Generated patient nodes have an edge connecting them if their distance in the feature space is below a set threshold.
+Generated patient nodes have an edge connecting them if their distance in the feature space is below a set threshold. The feature matrix and the adjacency matrix are stored in a PyTorch Data Object.
 ### 2. Train graph autoencoders 
 GAE are graph convolutional nets that integrate feature and adjacency information. The resulting latent represenation is decoded to reconstruct the adjacency 
 information and the loss is the mean squared error between the original matrix and the reconstructed one.
@@ -25,9 +25,18 @@ Remaining required packages under [Dependencies](/Dependencies)
 The output of the runs is visualized in Tensorboard (HTML based Dashboard) and executable for example:
 
 Terminal command:
-
 ```python
 tensorboard --logdir=./Deepan/runs/2021-03-18
+```
+
+Single runs can be executed by running
+```python
+pytorch_linearVAE.py
+```
+
+Multiple runs with different parameters can be executed by running 
+```python
+run.sh 
 ```
 
 ## Additional
