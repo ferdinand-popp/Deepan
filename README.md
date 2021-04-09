@@ -2,7 +2,7 @@
 Cluster patient based on their multiomics data utilizing graph autoencoders
 
 ## About the project
-Project based on pytorch-geometric.
+Project based on pytorch-geometric. It uses clinical EHR, gene expression and somatic mutation data from the TCGA Study [TCGA Study](https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga)
 ### 1. Generate a patient similarity graph. 
 Transform omics data into binary or numerical features and preselect them. 
 Generated patient nodes have an edge connecting them if their distance in the feature space is below a set threshold.
