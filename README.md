@@ -2,16 +2,16 @@
 Cluster patient based on their multiomics data utilizing graph autoencoders
 
 ## About the project
-Project based on pytorch-geometric.
+Project based on pytorch-geometric. It uses clinical EHR, gene expression and somatic mutation data from the TCGA Study [TCGA Study](https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga)
 ### 1. Generate a patient similarity graph. 
 Transform omics data into binary or numerical features and preselect them. 
-Generated patient nodes have an edge connecting them if their distance in the feature space is below a set threshold.
+Generated patient nodes have an edge connecting them if their distance in the feature space is below a set threshold. The feature matrix and the adjacency matrix are stored in a PyTorch Data Object.
 ### 2. Train graph autoencoders 
 GAE are graph convolutional nets that integrate feature and adjacency information. The resulting latent represenation is decoded to reconstruct the adjacency 
 information and the loss is the mean squared error between the original matrix and the reconstructed one.
 Various architectures from the pytorch geometric project are included and they all result in a latent representation after training. Mainly using **simple linear AE**, **GAE**, **VGAE**, **variational simple linear AE**
 ### 3. Clustering analysis for the latent represenation of the patients 
-The latent represenation can the be projected via an dimensionality reduction (UMAP) and clustered (DBSCAN)
+The latent represenation can the be projected via an dimensionality reduction (UMAP) and clustered (DBSCAN). An survival analysis is performed on the clustered patients afterwards.
 
 ## Getting started
 For GPU usage please check CUDA (min version 10.1) distributions in dependencies and in the requirements in the following links.
@@ -22,10 +22,20 @@ follow installation steps for pytorch geometric under (min version 1.6): [PyG Do
 
 Remaining required packages under [Dependencies](/Dependencies)
 
+
+Single runs can be executed by running
+```python
+pytorch_linearVAE.py
+```
+
+Multiple runs with different parameters can be executed by running 
+```python
+run.sh 
+```
+
 The output of the runs is visualized in Tensorboard (HTML based Dashboard) and executable for example:
 
 Terminal command:
-
 ```python
 tensorboard --logdir=./Deepan/runs/2021-03-18
 ```
