@@ -23,7 +23,7 @@ def mDA(xx, noise, lambdaa, A_n): #xx transfromed features
     Q = Sq * (q * q.conj().T)
     Q = np.squeeze(np.asarray(Q)) # to array
     qdiagn = q * np.diag(Sq)
-    Q[0:-1:rows+2, :] = qdiagn
+    np.fill_diagonal(Q[0:-1, 0:-1], qdiagn)
 
     p1 = Sp[0:-1, :]
     p1= np.squeeze(np.asarray(p1))
@@ -36,10 +36,29 @@ def mDA(xx, noise, lambdaa, A_n): #xx transfromed features
 
     hx = W @ xxb @ A_n
     print(hx)
-    return hx
+    return hx, W
 
-xx= np.random.rand(3, 12).T
+
+
+def mSDA(xx, noise, layers, A_n):
+
+    lam = 1e-5
+    prevhx = xx
+    allhx = []
+    Ws={}
+    for layer in range(layers-1):
+        newhx, W = mDA(prevhx,noise,lam,A_n);
+        Ws[layer] = W
+        allhx.append(newhx)
+        prevhx = newhx
+
+    return allhx, Ws
+
+#xx= np.random.rand(3, 12).T
+xx = [[0.5, 0.6, 0.7], [0.2, 0.3, 0.1], [0.9, 0.8, 0.7], [0.4, 0.9, 0.8], [0.1, 0.4, 0.5], [0.5, 0.6, 0.7], [0.2, 0.3, 0.1], [0.9, 0.8, 0.7], [0.4, 0.9, 0.8], [0.1, 0.4, 0.5], [0.9, 0.8, 0.7], [0.4, 0.9, 0.8]]
+xx = np.array(xx)
 A_n  = np.matrix([[1,0,1],
-       [0,1,0],
-       [1,0,1]])
-mDA(xx, 0.2, 0.005, A_n)
+       [0,1,1],
+       [1,1,1]])
+
+allhx, W = mSDA(xx, 0.2, 5, A_n)
