@@ -7,6 +7,10 @@ def load_clinical(dataset, url_clinical=None):
         if url_clinical is None:
             url_clinical = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
         df_raw = pd.read_csv(url_clinical, sep='\t', index_col=0)
+    if dataset == 'LUSC':
+        if url_clinical is None:
+            url_clinical = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUSC/LUSC_clinical_data_firebrowse_20210125.txt'
+        df_raw = pd.read_csv(url_clinical, sep='\t', index_col=0)
     if dataset == 'NSCLC':
         if url_clinical is None:
             url_clinical1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/clinical_data/LUAD/LUAD_clinical_data_firebrowse_20210125.txt'
@@ -117,6 +121,8 @@ def load_clinical(dataset, url_clinical=None):
     df_y_all = df_raw[['OS_time_days', 'OS_event']]
     if dataset == 'LUAD':
         df_y_all.loc[:,'Entity'] = ['LUAD' for _ in range(len(df_raw))]
+    if dataset == 'LUSC':
+        df_y_all.loc[:,'Entity'] = ['LUSC' for _ in range(len(df_raw))]
     if dataset == 'NSCLC':
         df_y_all.loc[:,'Entity'] = ['LUAD' for _ in range(len(df_raw1))] + ['LUSC' for _ in range(len(df_raw2))]
 

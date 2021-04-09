@@ -6,7 +6,10 @@ def preselect_expression(df_all, dataset):
         # uses the expression file to get most differentially expressed genes and returns list with gene names
         url = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_gene_expression_tpm.txt'
         df = pd.read_csv(url, sep='\t', index_col=0)  # 20527 rows and 515 patient cols
-
+    if dataset == 'LUSC':
+        # uses the expression file to get most differentially expressed genes and returns list with gene names
+        url = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUSC/LUSC_gene_expression_tpm.txt'
+        df = pd.read_csv(url, sep='\t', index_col=0)  # 20527 rows and 515 patient cols
     if dataset == 'NSCLC':
         # uses the expression file to get most differentially expressed genes and returns list with gene names
         url1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_gene_expression_tpm.txt'
@@ -63,7 +66,9 @@ def load_expression(dataset):
     if dataset == 'LUAD':
         url_expression = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_avr_gene_expression_binary.txt'
         df_raw = pd.read_csv(url_expression, sep='\t', index_col=0)
-
+    if dataset == 'LUSC':
+        url_expression = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUSC/LUSC_avr_gene_expression_binary.txt'
+        df_raw = pd.read_csv(url_expression, sep='\t', index_col=0)
     if dataset == 'NSCLC':
         url_expression1 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUAD/LUAD_avr_gene_expression_binary.txt'
         url_expression2 = r'/media/administrator/INTERNAL3_6TB/TCGA_data/gene_expression/LUSC/LUSC_avr_gene_expression_binary.txt'
