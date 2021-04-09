@@ -11,7 +11,7 @@ GAE are graph convolutional nets that integrate feature and adjacency informatio
 information and the loss is the mean squared error between the original matrix and the reconstructed one.
 Various architectures from the pytorch geometric project are included and they all result in a latent representation after training. Mainly using **simple linear AE**, **GAE**, **VGAE**, **variational simple linear AE**
 ### 3. Clustering analysis for the latent represenation of the patients 
-The latent represenation can the be projected via an dimensionality reduction (UMAP) and clustered (DBSCAN)
+The latent represenation can the be projected via an dimensionality reduction (UMAP) and clustered (DBSCAN). An survival analysis is performed on the clustered patients afterwards.
 
 ## Getting started
 For GPU usage please check CUDA (min version 10.1) distributions in dependencies and in the requirements in the following links.
@@ -22,12 +22,6 @@ follow installation steps for pytorch geometric under (min version 1.6): [PyG Do
 
 Remaining required packages under [Dependencies](/Dependencies)
 
-The output of the runs is visualized in Tensorboard (HTML based Dashboard) and executable for example:
-
-Terminal command:
-```python
-tensorboard --logdir=./Deepan/runs/2021-03-18
-```
 
 Single runs can be executed by running
 ```python
@@ -37,6 +31,13 @@ pytorch_linearVAE.py
 Multiple runs with different parameters can be executed by running 
 ```python
 run.sh 
+```
+
+The output of the runs is visualized in Tensorboard (HTML based Dashboard) and executable for example:
+
+Terminal command:
+```python
+tensorboard --logdir=./Deepan/runs/2021-03-18
 ```
 
 ## Additional
