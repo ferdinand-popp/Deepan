@@ -46,7 +46,7 @@ def get_arguments():
 
     # Embedding
     parser.add_argument('--projection', type=str, default='UMAP',
-                        choices=['TSNE', 'UMAP', 'MDS', 'LEIDEN'])
+                        choices=['TSNE', 'UMAP', 'MDS'])
 
     args = parser.parse_args()
     return args
@@ -223,9 +223,12 @@ def corrupt(noise, clean_data):
     data = np.copy(clean_data)
     n_masked = int(data.shape[1] * noise)
 
-    for i in xrange(data.shape[0]):
+    for i in range(data.shape[0]):
         mask = np.random.randint(0, data.shape[1], n_masked)
         data[:, mask] = 0
+
+    # or
+    # torch.randn_like(clean_data) * noise
 
     return data
 
@@ -242,9 +245,6 @@ def projection(z, dimensions=2):
         projection = umap.UMAP(n_components=dimensions, random_state=42)  # n_neighbors=30
     elif args.projection == 'MDS':
         projection = MDS(n_components=dimensions)
-    elif args.projection == 'LEIDEN':
-        # see https://github.com/vtraag/leidenalg IGraph
-        pass
     else:
         print('No projection')
         pass
@@ -425,7 +425,7 @@ def cluster_patients(df_y):
         z_0 = z.cpu().numpy()  # copies it to CPU
 
         # Dimensionality reduction via projection
-        result_df = projection(z_0)  # UMAP, TSNE, LEIDEN, MDS
+        result_df = projection(z_0)  # UMAP, TSNE, MDS
 
         # Clustering of the projection into patient groups
         labels = clustering_points(result_df)
