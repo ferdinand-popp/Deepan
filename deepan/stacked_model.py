@@ -42,10 +42,9 @@ class CDAutoEncoder(nn.Module):
 
     def forward(self, x, edge_index):
         # Train each autoencoder individually
-        x = x.detach()
+        x = x.clone().detach()
         # Add noise, but use the original lossless input as the target.
         # x_noisy = x * (Variable(x.data.new(x.size()).normal_(0, 0.1)) > -.1).type_as(x)
-        print(type(x))
         y = self.forward_pass(x, edge_index)
 
         if self.training:
@@ -55,7 +54,7 @@ class CDAutoEncoder(nn.Module):
             loss.backward()
             self.optimizer.step()
 
-        return y.detach()
+        return y.clone().detach()
 
     # def reconstruct(self, x):
     #    return self.backward_pass(x)
@@ -104,24 +103,26 @@ edge_index = data.edge_index
 
 #Model setup
 model = StackedAutoEncoder(num_features, num_features)
-epochs = 20
+epochs = 50
 criterion = nn.MSELoss()
-optimizer = torch.optim.Adam()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
 
 losses = []
-for epoch in epochs:
+for epoch in range(epochs):
     model.train()
     # corrupt input feature matrix
-    x = corrupt(features)
+    x = corrupt(features, 0.1)
+    x = torch.from_numpy(x)
     # forward info get hidden embedding
     z = model.encode(x, edge_index)
     # difference complete
     loss = criterion(z, features)
     losses.append(float(loss))
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+    #optimizer.zero_grad()
+    #loss.backward()
+    #optimizer.step()
 
 plt.plot(losses)
 plt.show()
+plt.savefig('Testrun.png')
