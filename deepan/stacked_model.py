@@ -96,16 +96,18 @@ def corrupt(clean_data, noise):
     return data
 
 #Data import
-data = torch.load(r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-18.pt')
+#data = torch.load(r'/media/administrator/INTERNAL3_6TB/TCGA_data/pyt_datasets/NSCLC/raw/numerical_data_308_2021-03-18.pt')
+data = torch.load(r'/home/fpopp/PycharmProjects/Deepan/data/Planetoid/Cora/processed/data.pt')[0]
 num_features = data.num_features
 features = data.x
 edge_index = data.edge_index
 
 #Model setup
 model = StackedAutoEncoder(num_features, num_features)
-epochs = 50
+epochs = 100
 criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+# not necessary as no overall optimizing is done:
+# optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
 
 losses = []
 for epoch in range(epochs):
@@ -118,6 +120,7 @@ for epoch in range(epochs):
     # difference complete
     loss = criterion(z, features)
     losses.append(float(loss))
+    print(f'Epoch:{epoch} Loss:{loss}')
 
     #optimizer.zero_grad()
     #loss.backward()

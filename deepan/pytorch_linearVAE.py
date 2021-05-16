@@ -8,6 +8,7 @@ import numpy as np
 
 import torch
 import torch_geometric.transforms as T
+from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GCNConv, GAE, VGAE  # , MGAE
@@ -30,8 +31,8 @@ def get_arguments():
     """
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--dataset', type=str, default='NSCLC',
-                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'NSCLC'])
+    parser.add_argument('--dataset', type=str, default='Cora',
+                        choices=['Cora', 'CiteSeer', 'PubMed', 'LUAD', 'LUSC', 'NSCLC'])
     parser.add_argument('--newdataset', action='store_true', default='FALSE')
     parser.add_argument('--cutoff', type=float, default=0.5)
     parser.add_argument('--filepath_dataset',
@@ -48,8 +49,7 @@ def get_arguments():
     parser.add_argument('--projection', type=str, default='UMAP',
                         choices=['TSNE', 'UMAP', 'MDS'])
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 args = get_arguments()
@@ -58,7 +58,7 @@ args = get_arguments()
 Dataset selection (Medical or Benchmark) and optional generation of this dataset.
 Returns a pytorch data object.
 '''
-if args.dataset in ['LUAD', 'NSCLC']:
+if args.dataset in ['LUAD', 'LUSC', 'NSCLC']:
     if args.newdataset == 'True':
         # read basic file data and preselect/transform it into dataframes
         df_features, df_y = create_binary_table(dataset=args.dataset, clinical=True, mutation=True, expression=True)
@@ -87,9 +87,10 @@ else:
 
 '''Inspect data object and set masks'''
 # inspect loaded pytorch data object for edge distribution
-draw_graph_inspect(data=data)
-degree_figure = plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
-degree_hist_figure = plot_degree_hist(data.adj_self)
+# draw_graph_inspect(data=data)
+# degree_figure = plot_in_out_degree_distributions(data.edge_index, data.num_nodes, args.dataset)
+if args.dataset in ['LUAD', 'LUSC', 'NSCLC']:
+    degree_hist_figure = plot_degree_hist(data.adj_self)
 
 # set variables
 num_features = data.num_features
@@ -100,7 +101,7 @@ out_channels = args.outputchannels
 # data = generate_masks(data, 0.85, 0.1)
 # Generate edge masks (val_ratio=0.05, test_ratio=0.1)
 data.train_mask = data.val_mask = data.test_mask = data.y = None
-data = train_test_split_edges(data)
+data = train_test_split_edges(data)  # was deleting edge_index
 
 '''Models'''
 
@@ -147,6 +148,107 @@ class VariationalLinearEncoder(torch.nn.Module):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
 
 
+class CDAutoEncoder(torch.nn.Module):
+    r"""
+    Convolutional denoising autoencoder layer for stacked autoencoders.
+    This module is automatically trained when in model.training is True.
+    Args:
+        input_size: The number of features in the input
+        output_size: The number of features to output
+    """
+
+    def __init__(self, input_size, output_size):
+        super(CDAutoEncoder, self).__init__()
+
+        self.forward_pass = LinearEncoder(in_channels=input_size, out_channels=output_size)
+        # self.backward_pass = nn.Sequential(
+        #     nn.ConvTranspose2d(output_size, input_size, kernel_size=2, stride=2, padding=0),
+        #     nn.ReLU(),
+        # )
+
+        self.criterion = torch.nn.MSELoss()
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=0.1)
+
+    def forward(self, x, edge_index):
+        # Train each autoencoder individually
+        x = x.clone().detach()
+        # Add noise, but use the original lossless input as the target.
+        # x_noisy = x * (Variable(x.data.new(x.size()).normal_(0, 0.1)) > -.1).type_as(x)
+        y = self.forward_pass(x, edge_index)
+
+        if self.training:
+            # x_reconstruct = self.backward_pass(y)
+            loss = self.criterion(y, Variable(x.data, requires_grad=False))
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        return y.clone().detach()
+
+    # def reconstruct(self, x):
+    #    return self.backward_pass(x)
+
+
+class StackedAutoEncoder(torch.nn.Module):
+    r"""
+    A stacked autoencoder made from the convolutional denoising autoencoders above.
+    Each autoencoder is trained independently and at the same time.
+    """
+
+    def __init__(self, input_size, output_size):
+        super(StackedAutoEncoder, self).__init__()
+
+        self.ae1 = CDAutoEncoder(input_size=input_size, output_size=output_size)
+        self.ae2 = CDAutoEncoder(input_size=input_size, output_size=output_size)
+        self.ae3 = CDAutoEncoder(input_size=input_size, output_size=output_size)
+
+    def forward(self, x, edge_index):
+        a1 = self.ae1(x, edge_index)
+        a2 = self.ae2(a1, edge_index)
+        a3 = self.ae3(a2, edge_index)
+
+        if self.training:
+            return a3
+
+    def encode(self, *args, **kwargs):
+        r"""Runs the encoder and computes node-wise latent variables."""
+        return self.forward(*args, **kwargs)
+
+    def test(self, z, pos_edge_index, neg_edge_index):
+        r"""Given latent variables :obj:`z`, positive edges
+        :obj:`pos_edge_index` and negative edges :obj:`neg_edge_index`,
+        computes area under the ROC curve (AUC) and average precision (AP)
+        scores.
+
+        Args:
+            z (Tensor): The latent space :math:`\mathbf{Z}`.
+            pos_edge_index (LongTensor): The positive edges to evaluate
+                against.
+            neg_edge_index (LongTensor): The negative edges to evaluate
+                against.
+        """
+        pos_y = z.new_ones(pos_edge_index.size(1))
+        neg_y = z.new_zeros(neg_edge_index.size(1))
+        y = torch.cat([pos_y, neg_y], dim=0)
+
+        pos_pred = self.decoder(z, pos_edge_index, sigmoid=True)
+        neg_pred = self.decoder(z, neg_edge_index, sigmoid=True)
+        pred = torch.cat([pos_pred, neg_pred], dim=0)
+
+        y, pred = y.detach().cpu().numpy(), pred.detach().cpu().numpy()
+
+        return roc_auc_score(y, pred), average_precision_score(y, pred)
+
+
+def corrupt(clean_data, noise):
+    """
+        Input noise for the MGAE
+        """
+    data = clean_data.detach().clone()
+    data[torch.randn_like(clean_data) < noise] = 0
+    return data
+
+
 '''Selection of Model'''
 if args.variational == 'False':
     if args.linear == 'False':
@@ -154,9 +256,9 @@ if args.variational == 'False':
         model_name = 'GCN'
 
     else:
-        ''' Added own MGAE model'''
+        ''' Added own stacked MGAE model'''
         if args.linear == 'MGAE':
-            model = MGAE(encoder=LinearEncoder(num_features, out_channels))
+            model = StackedAutoEncoder(num_features, num_features)
             model_name = 'MGAE'
         else:
             model = GAE(LinearEncoder(num_features, out_channels))
@@ -187,6 +289,7 @@ np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 x = data.x.to(device)
+data = data.to(device)
 train_pos_edge_index = data.train_pos_edge_index.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # optional args.decay
 
@@ -195,16 +298,25 @@ def train():
     model.train()
     optimizer.zero_grad()
     if args.linear == 'MGAE':
-        z = model.encode(x, data.edge_index, args.noise)
-        decoded_x = model.decode(z)
-        loss = model.recon_loss(decoded_x, data.edge_index, feature_matrix=data.x)
-    else:
+        # corrupt input feature matrix
+        xcor = corrupt(x, 0.1)
+        # forward info get hidden embedding
+        """
+        TODO: Fix why tensors differ in stacked_model.py and this file --> difference between x and xcor in the files
+        """
+        z = model.encode(xcor, data.edge_index)
+        # difference complete
+        criterion = torch.nn.MSELoss()
+        loss = criterion(z, data.x)
+        print(f'Epoch:{epoch} Loss:{loss}')
+
+    if model_name != 'MGAE':
         z = model.encode(x, train_pos_edge_index)
         loss = model.recon_loss(z, train_pos_edge_index)
         if args.variational == 'True':
             loss = loss + (1 / data.num_nodes) * model.kl_loss()
-    loss.backward()
-    optimizer.step()
+        loss.backward()
+        optimizer.step()
     return float(loss)
 
 
@@ -214,23 +326,6 @@ def test(pos_edge_index, neg_edge_index):
         # latent representation
         z = model.encode(x, train_pos_edge_index)
     return model.test(z, pos_edge_index, neg_edge_index)
-
-
-def corrupt(noise, clean_data):
-    """
-    Input noise for the MGAE
-    """
-    data = np.copy(clean_data)
-    n_masked = int(data.shape[1] * noise)
-
-    for i in range(data.shape[0]):
-        mask = np.random.randint(0, data.shape[1], n_masked)
-        data[:, mask] = 0
-
-    # or
-    # torch.randn_like(clean_data) * noise
-
-    return data
 
 
 def projection(z, dimensions=2):
@@ -452,12 +547,15 @@ def cluster_patients(df_y):
 best_val_auc = 0
 for epoch in range(1, args.epochs + 1):
     loss = train()
+    writer.add_scalar('loss', loss, epoch)
+    # MGAE has no Testing, besides clustering testing
+    if args.linear == 'MGAE': continue
+
     # testing masked egdes against the reconstructed graph from the projection
     auc, ap = test(data.test_pos_edge_index, data.test_neg_edge_index)
     if auc > best_val_auc:
         best_val_auc = auc
     writer.add_scalar('auc', auc, epoch)
-    writer.add_scalar('loss', loss, epoch)
 
     print('Epoch: {:03d}, Loss: {:.4f}, AUC: {:.4f}, AP: {:.4f}'.format(epoch, loss, auc, ap))
 
@@ -471,11 +569,14 @@ writer.add_text('Parameters', params)
 writer.add_hparams(param_dict, {'AUC_best': best_val_auc})
 writer.add_scalar('AUC_best', best_val_auc)
 writer.add_scalar('Edges', num_edges)
-writer.add_figure('Degree_Figure', degree_figure, epoch)
-writer.add_figure('Degree_Histogram', degree_hist_figure, epoch)
+if 'degree_figure' in locals():
+    writer.add_figure('Degree_Figure', degree_figure, epoch)
+if 'degree_hist_figure' in locals():
+    writer.add_figure('Degree_Histogram', degree_hist_figure, epoch)
 
 '''Network analysis: Call projection and clustering and plotting'''
-cluster_patients(df_y)  # writes also
+if model_name in ['NSCLC', 'LUAD', 'LUSC']:
+    cluster_patients(df_y)  # also uses writer
 
 ''' optional save trained model '''
 # modelpath = os.path.join(os.getwd(), 'models')
