@@ -1,5 +1,5 @@
 # Extracting knowledge from multi-omics and clinical datasets using effective graph autoencoders
-Cluster patient based on their multiomics data utilizing graph autoencoders
+Cluster patient based on their multiomics data utilizing graph autoencoders. Adapted from the [Simple and Effective Graph Autoencoders with One-Hop Linear Models](https://arxiv.org/pdf/2001.07614v1.pdf)(Salha et al., 2020) in PyTorch Geometric.
 
 ## About the project
 Project based on pytorch-geometric. It uses clinical EHR, gene expression and somatic mutation data from the TCGA Study [TCGA Study](https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga)
